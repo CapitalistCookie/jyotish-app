@@ -85,17 +85,28 @@ export default function OnboardingReview() {
   const { generateChart } = useChartStore();
 
   const handleGenerateChart = async () => {
+    // Validate required fields
+    if (!birthDate) {
+      setError('Please set your birth date');
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
 
+    const request = {
+      birthDate: formatDateForApi(birthDate),
+      birthTime: formatTimeForApi(birthTime, birthTimeUnknown),
+      latitude: latitude || 40.7128, // Default to NYC if not set
+      longitude: longitude || -74.006,
+      timezone: timezone || 'America/New_York',
+    };
+
+    console.log('Generating chart with request:', JSON.stringify(request));
+
     try {
-      const chart = await generateChart({
-        birthDate: formatDateForApi(birthDate),
-        birthTime: formatTimeForApi(birthTime, birthTimeUnknown),
-        latitude: latitude || 40.7128, // Default to NYC if not set
-        longitude: longitude || -74.006,
-        timezone: timezone || 'America/New_York',
-      });
+      const chart = await generateChart(request);
+      console.log('Chart generated successfully:', chart?.id);
 
       if (chart) {
         router.replace('/(main)/chart');
@@ -103,6 +114,7 @@ export default function OnboardingReview() {
         setError('Failed to generate chart. Please try again.');
       }
     } catch (err) {
+      console.error('Chart generation error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsGenerating(false);

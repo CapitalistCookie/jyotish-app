@@ -24,13 +24,16 @@ export const useChartStore = create<ChartState & ChartActions>()((set, get) => (
   ...initialState,
 
   generateChart: async (request: ChartRequest) => {
+    console.log('ChartStore: Starting chart generation');
     set({ isLoading: true, error: null });
 
     try {
       const chart = await apiClient.generateChart(request);
+      console.log('ChartStore: Chart generated successfully', chart?.id);
       set({ chart, isLoading: false });
       return chart;
     } catch (error) {
+      console.error('ChartStore: Error generating chart', error);
       const message = error instanceof Error ? error.message : 'Failed to generate chart';
       set({ error: message, isLoading: false });
       return null;

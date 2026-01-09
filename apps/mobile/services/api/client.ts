@@ -1,13 +1,11 @@
 import { Platform } from 'react-native';
 
-// Use localhost for web, machine IP for native devices
+// Server IP where the backend is running
+const SERVER_IP = '192.168.1.225';
+
+// Use the server IP for all platforms
 const getBaseUrl = () => {
-  if (Platform.OS === 'web') {
-    return 'http://localhost:3001';
-  }
-  // For physical devices/emulators, use your machine's IP
-  // TODO: Update this to your actual LXC/machine IP
-  return 'http://localhost:3001';
+  return `http://${SERVER_IP}:3001`;
 };
 
 const BASE_URL = getBaseUrl();
@@ -91,9 +89,13 @@ class ApiClient {
       },
     };
 
+    console.log(`API Request: ${options.method || 'GET'} ${url}`);
+
     try {
       const response = await fetch(url, config);
       const data = await response.json();
+
+      console.log(`API Response: ${response.status}`, data?.success);
 
       if (!response.ok) {
         throw new Error(data.error || 'Request failed');
@@ -101,6 +103,7 @@ class ApiClient {
 
       return data;
     } catch (error) {
+      console.error('API Error:', error);
       if (error instanceof Error) {
         throw error;
       }

@@ -14,10 +14,12 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors({
   origin: [
-    'http://localhost:8081',  // Expo web
-    'http://localhost:19006', // Expo web alt
-    'http://localhost:3000',  // Next.js (if used)
-    /^exp:\/\//,              // Expo Go app
+    'http://localhost:8081',      // Expo web local
+    'http://localhost:19006',     // Expo web alt
+    'http://localhost:3000',      // Next.js (if used)
+    'http://192.168.1.225:8081',  // Expo web on server
+    /^exp:\/\//,                  // Expo Go app
+    /^http:\/\/192\.168\./,       // Any local network IP
   ],
   credentials: true,
 }));

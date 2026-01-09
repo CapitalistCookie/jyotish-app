@@ -31,10 +31,15 @@ export default function LoginScreen() {
   });
 
   const onSubmit = async (data: LoginForm) => {
-    // TODO: Implement actual login
+    // TODO: Implement actual login with backend
     console.log('Login:', data);
-    // Navigate to main app after successful login
-    // router.replace('/(main)');
+    // For now, navigate to onboarding
+    router.replace('/onboarding');
+  };
+
+  const handleSkip = () => {
+    // Skip login and go directly to onboarding for testing
+    router.replace('/onboarding');
   };
 
   return (
@@ -106,6 +111,16 @@ export default function LoginScreen() {
           </Button>
         </View>
 
+        {/* Skip option for testing */}
+        <Button
+          mode="text"
+          onPress={handleSkip}
+          style={styles.skipButton}
+          labelStyle={styles.skipLabel}
+        >
+          Skip for now
+        </Button>
+
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
@@ -163,6 +178,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  skipButton: {
+    marginTop: 16,
+  },
+  skipLabel: {
+    color: Colors.textMuted,
+    fontSize: 14,
   },
   footer: {
     flexDirection: 'row',
