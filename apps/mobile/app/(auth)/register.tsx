@@ -40,10 +40,10 @@ export default function RegisterScreen() {
   });
 
   const onSubmit = async (data: RegisterForm) => {
-    // TODO: Implement actual registration
+    // TODO: Implement actual registration with backend
     console.log('Register:', data);
-    // Navigate to main app after successful registration
-    // router.replace('/(main)');
+    // Navigate to onboarding after successful registration
+    router.replace('/onboarding');
   };
 
   return (
