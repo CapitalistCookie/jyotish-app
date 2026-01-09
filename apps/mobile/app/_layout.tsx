@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider } from 'react-native-paper';
@@ -6,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { theme } from '../constants/theme';
 import { Colors } from '../constants/colors';
+import { useSubscriptionStore } from '../stores';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,6 +19,13 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  const { initialize } = useSubscriptionStore();
+
+  // Initialize subscription state on app launch
+  useEffect(() => {
+    initialize();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.background }}>
       <SafeAreaProvider>

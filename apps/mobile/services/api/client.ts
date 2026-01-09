@@ -105,6 +105,181 @@ class ApiClient {
     }
     return response.response;
   }
+
+  /**
+   * Send a chat message with conversation history support
+   */
+  async sendChatMessage(
+    chartId: string,
+    question: string,
+    history: ChatMessage[] = [],
+    userId?: string
+  ): Promise<ChatApiResponse> {
+    const response = await fetch(`${OpenAPI.BASE}/api/reading/${chartId}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ question, history, userId }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new QuotaExceededError(data.message || 'Monthly question limit reached', data.questionsRemaining, data.resetAt);
+      }
+      throw new Error(data.error || 'Failed to send message');
+    }
+
+    return data;
+  }
+
+  /**
+   * Get chat history for a chart
+   */
+  async getChatHistory(chartId: string, userId?: string): Promise<ChatMessage[]> {
+    const url = new URL(`${OpenAPI.BASE}/api/reading/${chartId}/chat/history`);
+    if (userId) url.searchParams.set('userId', userId);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to get chat history');
+    }
+
+    return data.history || [];
+  }
+
+  /**
+   * Clear chat history for a chart
+   */
+  async clearChatHistory(chartId: string, userId?: string): Promise<void> {
+    const url = new URL(`${OpenAPI.BASE}/api/reading/${chartId}/chat/history`);
+    if (userId) url.searchParams.set('userId', userId);
+
+    const response = await fetch(url.toString(), { method: 'DELETE' });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to clear chat history');
+    }
+  }
+
+  /**
+   * Get remaining questions for a user
+   */
+  async getRemainingQuestions(userId?: string): Promise<QuestionQuota> {
+    const url = new URL(`${OpenAPI.BASE}/api/reading/questions/remaining`);
+    if (userId) url.searchParams.set('userId', userId);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to get question quota');
+    }
+
+    return {
+      questionsUsed: data.questionsUsed,
+      questionsRemaining: data.questionsRemaining,
+      limit: data.limit,
+      resetAt: data.resetAt,
+    };
+  }
+
+  /**
+   * Get subscription status for a user
+   */
+  async getSubscriptionStatus(userId?: string): Promise<SubscriptionStatusResponse> {
+    const url = new URL(`${OpenAPI.BASE}/api/subscription/status`);
+    if (userId) url.searchParams.set('userId', userId);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to get subscription status');
+    }
+
+    return {
+      isPremium: data.subscription?.isPremium || false,
+      tier: data.subscription?.tier || 'free',
+      expiresAt: data.subscription?.expiresAt || null,
+      provider: data.subscription?.provider || null,
+      entitlements: data.subscription?.entitlements || [],
+    };
+  }
+
+  /**
+   * Get reading categories with access info
+   */
+  async getReadingCategoriesWithAccess(userId?: string): Promise<CategoryWithAccess[]> {
+    const url = new URL(`${OpenAPI.BASE}/api/reading/categories`);
+    if (userId) url.searchParams.set('userId', userId);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to get categories');
+    }
+
+    return data.categories || [];
+  }
+}
+
+// Chat-related types
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
+export interface ChatApiResponse {
+  success: boolean;
+  response: string;
+  chartId: string;
+  timestamp: string;
+  provider?: string;
+  questionsRemaining: number;
+}
+
+export interface QuestionQuota {
+  questionsUsed: number;
+  questionsRemaining: number;
+  limit: number;
+  resetAt: string;
+}
+
+export class QuotaExceededError extends Error {
+  questionsRemaining: number;
+  resetAt: string;
+
+  constructor(message: string, questionsRemaining: number, resetAt: string) {
+    super(message);
+    this.name = 'QuotaExceededError';
+    this.questionsRemaining = questionsRemaining;
+    this.resetAt = resetAt;
+  }
+}
+
+// Subscription-related types
+export interface SubscriptionStatusResponse {
+  isPremium: boolean;
+  tier: 'free' | 'premium' | 'pro';
+  expiresAt: string | null;
+  provider: string | null;
+  entitlements: string[];
+}
+
+export interface CategoryWithAccess {
+  id: string;
+  name: string;
+  description: string;
+  accessLevel: 'free' | 'premium';
+  isLocked: boolean;
 }
 
 export const apiClient = new ApiClient();

@@ -147,6 +147,22 @@ export default function SummaryScreen() {
         </Button>
       )}
 
+      {/* Ask a Question Button */}
+      {!isTyping && (
+        <Animated.View style={[styles.askSection, { opacity: fadeAnim }]}>
+          <Button
+            mode="contained"
+            onPress={() => router.push('/(main)/chat')}
+            style={styles.askButton}
+            buttonColor={Colors.primary}
+            textColor={Colors.background}
+            icon="chat-question"
+          >
+            Ask a Question
+          </Button>
+        </Animated.View>
+      )}
+
       {/* Category Selection */}
       <Animated.View style={[styles.categoriesSection, { opacity: fadeAnim }]}>
         <Text style={styles.sectionTitle}>Explore Deeper</Text>
@@ -235,6 +251,14 @@ const styles = StyleSheet.create({
   skipButton: {
     alignSelf: 'center',
     marginTop: 8,
+  },
+  askSection: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  askButton: {
+    borderRadius: 24,
+    paddingHorizontal: 8,
   },
   categoriesSection: {
     marginTop: 32,

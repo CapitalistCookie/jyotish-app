@@ -223,6 +223,13 @@ paths:
       operationId: getReadingCategories
       tags:
         - Reading
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID to check access levels
       responses:
         '200':
           description: List of available categories
@@ -230,6 +237,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CategoriesResponse'
+
+  /api/reading/questions/remaining:
+    get:
+      summary: Get remaining questions for a user
+      operationId: getRemainingQuestions
+      tags:
+        - Reading
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID (optional, defaults to anonymous)
+      responses:
+        '200':
+          description: Question quota information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionQuotaResponse'
 
   /api/reading/{chartId}/summary:
     get:
@@ -300,6 +328,12 @@ paths:
             type: string
             enum: [claude, deepseek, gemini, openai]
           description: Preferred AI provider (optional, uses configured default if not specified)
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID for subscription check
       responses:
         '200':
           description: Reading generated
@@ -309,6 +343,12 @@ paths:
                 $ref: '#/components/schemas/ReadingResponse'
         '400':
           description: Invalid category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Premium subscription required
           content:
             application/json:
               schema:
@@ -383,6 +423,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/CachedReadingsResponse'
 
+  /api/reading/{chartId}/chat/history:
+    get:
+      summary: Get chat history for a chart
+      operationId: getChatHistory
+      tags:
+        - Reading
+      parameters:
+        - name: chartId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: Chat history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatHistoryResponse'
+        '404':
+          description: Chart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Clear chat history for a chart
+      operationId: clearChatHistory
+      tags:
+        - Reading
+      parameters:
+        - name: chartId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: Chat history cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '404':
+          description: Chart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/ai/providers:
     get:
       summary: List available AI providers
@@ -404,21 +515,72 @@ paths:
       operationId: getSubscriptionStatus
       tags:
         - Subscription
-      security:
-        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID (optional for authenticated requests)
       responses:
         '200':
           description: Subscription status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SubscriptionStatus'
-        '401':
-          description: Not authenticated
+                $ref: '#/components/schemas/SubscriptionStatusResponse'
+
+  /api/subscription/webhook:
+    post:
+      summary: RevenueCat webhook endpoint
+      operationId: handleSubscriptionWebhook
+      tags:
+        - Subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevenueCatWebhookPayload'
+      responses:
+        '200':
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Invalid webhook signature
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /api/subscription/question-usage:
+    get:
+      summary: Get question usage for a user
+      operationId: getQuestionUsage
+      tags:
+        - Subscription
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: Question usage info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionUsageResponse'
 
 components:
   securitySchemes:
@@ -711,6 +873,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReadingCategory'
+        userTier:
+          type: string
+          enum: [free, premium, pro]
+        isPremium:
+          type: boolean
 
     ReadingCategory:
       type: object
@@ -722,6 +889,11 @@ components:
           type: string
         description:
           type: string
+        accessLevel:
+          type: string
+          enum: [free, premium]
+        isLocked:
+          type: boolean
 
     ReadingResponse:
       type: object
@@ -766,10 +938,25 @@ components:
           type: string
           minLength: 1
           maxLength: 500
-        previousReadings:
+        history:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/ChatMessageItem'
+        userId:
+          type: string
+          description: User ID for tracking question quota
+
+    ChatMessageItem:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
 
     ChatResponse:
       type: object
@@ -787,6 +974,38 @@ components:
           type: string
           description: AI provider used to generate the response
           enum: [claude, deepseek, gemini, openai]
+        questionsRemaining:
+          type: integer
+          description: Number of free questions remaining for the user
+
+    QuestionQuotaResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        questionsUsed:
+          type: integer
+        questionsRemaining:
+          type: integer
+        limit:
+          type: integer
+        resetAt:
+          type: string
+          format: date-time
+
+    ChatHistoryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        chartId:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessageItem'
+        messageCount:
+          type: integer
 
     CachedReadingsResponse:
       type: object
@@ -837,7 +1056,7 @@ components:
           description: The model being used by this provider
 
     # Subscription Schemas
-    SubscriptionStatus:
+    SubscriptionStatusResponse:
       type: object
       properties:
         success:
@@ -845,20 +1064,76 @@ components:
         subscription:
           type: object
           properties:
-            plan:
+            isPremium:
+              type: boolean
+            tier:
               type: string
               enum: [free, premium, pro]
-            status:
-              type: string
-              enum: [active, cancelled, expired]
             expiresAt:
               type: string
               format: date-time
               nullable: true
-            features:
+            provider:
+              type: string
+              nullable: true
+              description: Subscription provider (revenuecat, stripe, manual) or null if free
+            entitlements:
               type: array
               items:
                 type: string
+              description: List of entitlements (premium_access, unlimited_questions, all_readings)
+
+    RevenueCatWebhookPayload:
+      type: object
+      properties:
+        api_version:
+          type: string
+        event:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [INITIAL_PURCHASE, RENEWAL, CANCELLATION, UNCANCELLATION, NON_RENEWING_PURCHASE, SUBSCRIPTION_PAUSED, EXPIRATION, BILLING_ISSUE, PRODUCT_CHANGE, TRANSFER]
+            app_user_id:
+              type: string
+            original_app_user_id:
+              type: string
+            product_id:
+              type: string
+            entitlement_ids:
+              type: array
+              items:
+                type: string
+            expiration_at_ms:
+              type: integer
+            purchased_at_ms:
+              type: integer
+            environment:
+              type: string
+              enum: [SANDBOX, PRODUCTION]
+            store:
+              type: string
+              enum: [APP_STORE, PLAY_STORE, STRIPE, PROMOTIONAL]
+
+    QuestionUsageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        usage:
+          type: object
+          properties:
+            count:
+              type: integer
+            remaining:
+              type: integer
+            limit:
+              type: integer
+            resetAt:
+              type: string
+              format: date-time
+            isPremium:
+              type: boolean
 
     # Error Schema
     Error:

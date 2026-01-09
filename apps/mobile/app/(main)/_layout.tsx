@@ -21,6 +21,7 @@ export default function MainLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="chart" />
         <Stack.Screen name="summary" />
+        <Stack.Screen name="chat" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="reading/[category]" />
       </Stack>
     </LinearGradient>

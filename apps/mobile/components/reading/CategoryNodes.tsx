@@ -1,33 +1,36 @@
+import { useState } from 'react';
 import { View, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Colors } from '../../constants/colors';
+import { useSubscriptionStore, READING_ACCESS, ReadingCategory } from '../../stores';
+import { Paywall } from '../subscription';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NODE_SIZE = 80;
 const CONTAINER_SIZE = Math.min(SCREEN_WIDTH - 48, 320);
 
 interface Category {
-  id: string;
+  id: ReadingCategory;
   name: string;
   icon: string;
-  isLocked: boolean;
 }
 
 const CATEGORIES: Category[] = [
-  { id: 'love', name: 'Love', icon: '♡', isLocked: false },
-  { id: 'career', name: 'Career', icon: '◈', isLocked: true },
-  { id: 'finances', name: 'Finances', icon: '◎', isLocked: true },
-  { id: 'health', name: 'Health', icon: '✦', isLocked: true },
-  { id: 'timeline', name: 'Timeline', icon: '◴', isLocked: true },
+  { id: 'love', name: 'Love', icon: '	' },
+  { id: 'career', name: 'Career', icon: '' },
+  { id: 'finances', name: 'Finances', icon: '' },
+  { id: 'health', name: 'Health', icon: '' },
+  { id: 'timeline', name: 'Timeline', icon: '' },
 ];
 
 interface CategoryNodeProps {
   category: Category;
   position: { x: number; y: number };
+  isLocked: boolean;
   onPress: () => void;
 }
 
-function CategoryNode({ category, position, onPress }: CategoryNodeProps) {
+function CategoryNode({ category, position, isLocked, onPress }: CategoryNodeProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -41,12 +44,16 @@ function CategoryNode({ category, position, onPress }: CategoryNodeProps) {
         pressed && styles.nodePressed,
       ]}
     >
-      <View style={styles.nodeInner}>
-        <Text style={styles.nodeIcon}>{category.icon}</Text>
-        <Text style={styles.nodeName}>{category.name}</Text>
-        {category.isLocked && (
+      <View style={[styles.nodeInner, isLocked && styles.nodeInnerLocked]}>
+        <Text style={[styles.nodeIcon, isLocked && styles.nodeIconLocked]}>
+          {category.icon}
+        </Text>
+        <Text style={[styles.nodeName, isLocked && styles.nodeNameLocked]}>
+          {category.name}
+        </Text>
+        {isLocked && (
           <View style={styles.lockBadge}>
-            <Text style={styles.lockIcon}>🔒</Text>
+            <Text style={styles.lockIcon}>	</Text>
           </View>
         )}
       </View>
@@ -59,6 +66,9 @@ interface CategoryNodesProps {
 }
 
 export function CategoryNodes({ onSelect }: CategoryNodesProps) {
+  const [showPaywall, setShowPaywall] = useState(false);
+  const { isPremium } = useSubscriptionStore();
+
   // Calculate positions in a circle
   const centerX = CONTAINER_SIZE / 2;
   const centerY = CONTAINER_SIZE / 2;
@@ -73,54 +83,78 @@ export function CategoryNodes({ onSelect }: CategoryNodesProps) {
     };
   };
 
+  const isLocked = (categoryId: ReadingCategory): boolean => {
+    if (isPremium) return false;
+    return READING_ACCESS[categoryId] === 'premium';
+  };
+
+  const handleCategoryPress = (categoryId: string) => {
+    if (isLocked(categoryId as ReadingCategory)) {
+      setShowPaywall(true);
+    } else {
+      onSelect(categoryId);
+    }
+  };
+
   return (
-    <View style={[styles.container, { width: CONTAINER_SIZE, height: CONTAINER_SIZE }]}>
-      {/* Center decoration */}
-      <View style={styles.centerCircle}>
-        <Text style={styles.centerIcon}>✧</Text>
+    <>
+      <View style={[styles.container, { width: CONTAINER_SIZE, height: CONTAINER_SIZE }]}>
+        {/* Center decoration */}
+        <View style={styles.centerCircle}>
+          <Text style={styles.centerIcon}>	</Text>
+        </View>
+
+        {/* Connecting lines */}
+        <View style={styles.linesContainer}>
+          {CATEGORIES.map((category, index) => {
+            const pos = getPosition(index, CATEGORIES.length);
+            const angle = Math.atan2(pos.y - centerY, pos.x - centerX) * (180 / Math.PI);
+            const distance = Math.sqrt(
+              Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2)
+            );
+            const locked = isLocked(category.id);
+
+            return (
+              <View
+                key={index}
+                style={[
+                  styles.line,
+                  locked && styles.lineLocked,
+                  {
+                    width: distance - 20,
+                    left: centerX,
+                    top: centerY,
+                    transform: [
+                      { translateX: -0 },
+                      { translateY: -0.5 },
+                      { rotate: `${angle}deg` },
+                    ],
+                    transformOrigin: 'left center',
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+
+        {/* Category nodes */}
+        {CATEGORIES.map((category, index) => (
+          <CategoryNode
+            key={category.id}
+            category={category}
+            position={getPosition(index, CATEGORIES.length)}
+            isLocked={isLocked(category.id)}
+            onPress={() => handleCategoryPress(category.id)}
+          />
+        ))}
       </View>
 
-      {/* Connecting lines */}
-      <View style={styles.linesContainer}>
-        {CATEGORIES.map((_, index) => {
-          const pos = getPosition(index, CATEGORIES.length);
-          const angle = Math.atan2(pos.y - centerY, pos.x - centerX) * (180 / Math.PI);
-          const distance = Math.sqrt(
-            Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2)
-          );
-
-          return (
-            <View
-              key={index}
-              style={[
-                styles.line,
-                {
-                  width: distance - 20,
-                  left: centerX,
-                  top: centerY,
-                  transform: [
-                    { translateX: -0 },
-                    { translateY: -0.5 },
-                    { rotate: `${angle}deg` },
-                  ],
-                  transformOrigin: 'left center',
-                },
-              ]}
-            />
-          );
-        })}
-      </View>
-
-      {/* Category nodes */}
-      {CATEGORIES.map((category, index) => (
-        <CategoryNode
-          key={category.id}
-          category={category}
-          position={getPosition(index, CATEGORIES.length)}
-          onPress={() => onSelect(category.id)}
-        />
-      ))}
-    </View>
+      {/* Paywall Modal */}
+      <Paywall
+        visible={showPaywall}
+        onDismiss={() => setShowPaywall(false)}
+      />
+    </>
   );
 }
 
@@ -158,6 +192,9 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.primary + '30',
   },
+  lineLocked: {
+    backgroundColor: Colors.textMuted + '30',
+  },
   node: {
     position: 'absolute',
     width: NODE_SIZE,
@@ -180,15 +217,25 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  nodeInnerLocked: {
+    borderColor: Colors.textMuted + '40',
+    shadowOpacity: 0.1,
+  },
   nodeIcon: {
     fontSize: 22,
     color: Colors.primary,
     marginBottom: 2,
   },
+  nodeIconLocked: {
+    color: Colors.textMuted,
+  },
   nodeName: {
     fontSize: 11,
     color: Colors.textPrimary,
     fontWeight: '500',
+  },
+  nodeNameLocked: {
+    color: Colors.textMuted,
   },
   lockBadge: {
     position: 'absolute',
@@ -199,11 +246,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.primary + '40',
     justifyContent: 'center',
     alignItems: 'center',
   },
   lockIcon: {
     fontSize: 10,
+    color: Colors.primary,
   },
 });

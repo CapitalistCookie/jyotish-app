@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
-import { Text, Button, ActivityIndicator, FAB, Portal, Modal } from 'react-native-paper';
+import { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Text, Button, ActivityIndicator, FAB } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../../constants/colors';
@@ -45,12 +45,6 @@ export default function ReadingScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-
-  // Chat modal state
-  const [showChat, setShowChat] = useState(false);
-  const [question, setQuestion] = useState('');
-  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
-  const [isAsking, setIsAsking] = useState(false);
 
   const categoryInfo = CATEGORY_INFO[category || ''] || {
     title: 'Reading',
@@ -112,26 +106,14 @@ export default function ReadingScreen() {
     }
   };
 
-  const handleAskQuestion = async () => {
-    if (!question.trim() || !chart) return;
-
-    const userQuestion = question.trim();
-    setQuestion('');
-    setChatHistory((prev) => [...prev, { role: 'user', text: userQuestion }]);
-    setIsAsking(true);
-
-    try {
-      const previousReadings = reading ? [reading] : [];
-      const response = await apiClient.askQuestion(chart.id, userQuestion, previousReadings);
-      setChatHistory((prev) => [...prev, { role: 'ai', text: response }]);
-    } catch (err) {
-      setChatHistory((prev) => [
-        ...prev,
-        { role: 'ai', text: 'I apologize, but I was unable to process your question. Please try again.' },
-      ]);
-    } finally {
-      setIsAsking(false);
-    }
+  const handleAskQuestion = () => {
+    // Navigate to chat screen with context about current reading
+    router.push({
+      pathname: '/(main)/chat',
+      params: {
+        context: `I'm reading about my ${categoryInfo.title.toLowerCase()}. Can you tell me more about it?`,
+      },
+    });
   };
 
   if (isLoading) {
@@ -221,77 +203,11 @@ export default function ReadingScreen() {
         <FAB
           icon="chat"
           style={[styles.fab, { bottom: insets.bottom + 16 }]}
-          onPress={() => setShowChat(true)}
+          onPress={handleAskQuestion}
           color={Colors.background}
           label="Ask a Question"
         />
       )}
-
-      {/* Chat Modal */}
-      <Portal>
-        <Modal
-          visible={showChat}
-          onDismiss={() => setShowChat(false)}
-          contentContainerStyle={[styles.modalContent, { marginBottom: insets.bottom }]}
-        >
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <Text style={styles.modalTitle}>Ask a Question</Text>
-            <Text style={styles.modalSubtitle}>
-              Get personalized answers about your {categoryInfo.title.toLowerCase()}
-            </Text>
-
-            {/* Chat History */}
-            <ScrollView style={styles.chatHistory}>
-              {chatHistory.map((msg, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.chatMessage,
-                    msg.role === 'user' ? styles.userMessage : styles.aiMessage,
-                  ]}
-                >
-                  <Text style={styles.chatMessageText}>{msg.text}</Text>
-                </View>
-              ))}
-              {isAsking && (
-                <View style={styles.aiMessage}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Type your question..."
-                placeholderTextColor={Colors.textMuted}
-                value={question}
-                onChangeText={setQuestion}
-                multiline
-                maxLength={500}
-              />
-              <Button
-                mode="contained"
-                onPress={handleAskQuestion}
-                disabled={!question.trim() || isAsking}
-                style={styles.sendButton}
-              >
-                Ask
-              </Button>
-            </View>
-
-            <Button
-              mode="text"
-              onPress={() => setShowChat(false)}
-              textColor={Colors.textMuted}
-              style={styles.closeButton}
-            >
-              Close
-            </Button>
-          </KeyboardAvoidingView>
-        </Modal>
-      </Portal>
     </>
   );
 }
@@ -391,72 +307,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     backgroundColor: Colors.primary,
-  },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    margin: 20,
-    borderRadius: 16,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  chatHistory: {
-    maxHeight: 200,
-    marginBottom: 16,
-  },
-  chatMessage: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    maxWidth: '85%',
-  },
-  userMessage: {
-    backgroundColor: Colors.primary + '20',
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
-  },
-  aiMessage: {
-    backgroundColor: Colors.background,
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
-  },
-  chatMessageText: {
-    fontSize: 14,
-    color: Colors.textPrimary,
-    lineHeight: 20,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-end',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 12,
-    color: Colors.textPrimary,
-    fontSize: 14,
-    maxHeight: 100,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  sendButton: {
-    backgroundColor: Colors.primary,
-  },
-  closeButton: {
-    marginTop: 12,
   },
 });

@@ -1,0 +1,129 @@
+// Prisma schema for Jyotish Backend
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model with subscription fields
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  password  String   // Hashed password
+
+  // Subscription fields
+  subscriptionStatus    String    @default("free") // free, premium, pro
+  subscriptionExpiresAt DateTime?
+  subscriptionProvider  String?   // revenuecat, stripe, manual
+  revenuecatId          String?   @unique
+
+  // Question usage tracking
+  questionsUsedThisMonth Int       @default(0)
+  questionResetDate      DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  charts         Chart[]
+  chatSessions   ChatSession[]
+
+  @@map("users")
+}
+
+// Birth chart storage
+model Chart {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Birth details
+  name            String?
+  birthDate       DateTime
+  birthTime       String    // HH:MM format
+  place           String?
+  latitude        Float
+  longitude       Float
+  timezone        String    @default("UTC")
+
+  // Calculated chart data (stored as JSON)
+  chartData       Json      // Full chart including planets, houses, dashas
+
+  // Cached readings
+  cachedReadings  CachedReading[]
+  chatSessions    ChatSession[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("charts")
+}
+
+// Cached AI readings
+model CachedReading {
+  id        String   @id @default(uuid())
+  chartId   String
+  chart     Chart    @relation(fields: [chartId], references: [id], onDelete: Cascade)
+
+  category  String   // summary, love, career, finances, health, timeline
+  content   String   @db.Text
+  provider  String   // AI provider used
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+
+  @@unique([chartId, category])
+  @@map("cached_readings")
+}
+
+// Chat session for follow-up questions
+model ChatSession {
+  id        String   @id @default(uuid())
+  chartId   String
+  chart     Chart    @relation(fields: [chartId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  messages  ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("chat_sessions")
+}
+
+// Individual chat messages
+model ChatMessage {
+  id          String      @id @default(uuid())
+  sessionId   String
+  session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  role        String      // user, assistant
+  content     String      @db.Text
+
+  createdAt   DateTime    @default(now())
+
+  @@map("chat_messages")
+}
+
+// Subscription events log (for webhook processing)
+model SubscriptionEvent {
+  id            String   @id @default(uuid())
+  userId        String
+  eventType     String   // INITIAL_PURCHASE, RENEWAL, CANCELLATION, etc.
+  productId     String?
+  provider      String   // revenuecat, stripe
+  environment   String?  // SANDBOX, PRODUCTION
+  rawPayload    Json?    // Full webhook payload
+
+  processedAt   DateTime @default(now())
+
+  @@map("subscription_events")
+}
