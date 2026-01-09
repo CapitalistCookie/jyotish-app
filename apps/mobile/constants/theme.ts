@@ -1,0 +1,52 @@
+import { MD3DarkTheme } from 'react-native-paper';
+import { Colors } from './colors';
+
+export const theme = {
+  ...MD3DarkTheme,
+  dark: true,
+  colors: {
+    ...MD3DarkTheme.colors,
+    primary: Colors.primary,
+    primaryContainer: Colors.primaryDark,
+    secondary: Colors.primaryLight,
+    secondaryContainer: Colors.surface,
+    tertiary: Colors.primary,
+    tertiaryContainer: Colors.surfaceLight,
+    surface: Colors.surface,
+    surfaceVariant: Colors.surfaceLight,
+    surfaceDisabled: Colors.surface,
+    background: Colors.background,
+    error: Colors.error,
+    errorContainer: '#450a0a',
+    onPrimary: Colors.background,
+    onPrimaryContainer: Colors.textPrimary,
+    onSecondary: Colors.background,
+    onSecondaryContainer: Colors.textPrimary,
+    onTertiary: Colors.background,
+    onTertiaryContainer: Colors.textPrimary,
+    onSurface: Colors.textPrimary,
+    onSurfaceVariant: Colors.textSecondary,
+    onSurfaceDisabled: Colors.textMuted,
+    onError: Colors.textPrimary,
+    onErrorContainer: Colors.textPrimary,
+    onBackground: Colors.textPrimary,
+    outline: Colors.border,
+    outlineVariant: Colors.border,
+    inverseSurface: Colors.textPrimary,
+    inverseOnSurface: Colors.background,
+    inversePrimary: Colors.primaryDark,
+    shadow: '#000000',
+    scrim: Colors.overlay,
+    backdrop: Colors.overlay,
+    elevation: {
+      level0: 'transparent',
+      level1: Colors.surface,
+      level2: Colors.surfaceLight,
+      level3: Colors.surfaceLight,
+      level4: Colors.surfaceLight,
+      level5: Colors.surfaceLight,
+    },
+  },
+};
+
+export type AppTheme = typeof theme;
