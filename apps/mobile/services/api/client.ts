@@ -1,151 +1,109 @@
-import { Platform } from 'react-native';
+// Re-export generated types and services
+export {
+  OpenAPI,
+  ApiError,
+  // Types
+  type ChartRequest,
+  type ChartResponse,
+  type BirthChart,
+  type Planet,
+  type House,
+  type DashaPeriod,
+  type Reading,
+  type ReadingResponse,
+  type ReadingCategory,
+  type CategoriesResponse,
+  type ChatRequest,
+  type ChatResponse,
+  type RegisterRequest,
+  type LoginRequest,
+  type AuthResponse,
+  type User,
+  type UserResponse,
+  type SubscriptionStatus,
+  type CachedReadingsResponse,
+  // Services
+  ChartService,
+  ReadingService,
+  AuthService,
+  SubscriptionService,
+  DefaultService,
+} from './generated';
+
+import { OpenAPI } from './generated';
 
 // Server IP where the backend is running
 const SERVER_IP = '192.168.1.225';
 
-// Use the server IP for all platforms
-const getBaseUrl = () => {
-  return `http://${SERVER_IP}:3001`;
-};
+// Configure the generated client's base URL
+OpenAPI.BASE = `http://${SERVER_IP}:3001`;
 
-const BASE_URL = getBaseUrl();
+// Type alias for backward compatibility
+export type ReadingCategoryId = 'summary' | 'love' | 'career' | 'finances' | 'health' | 'timeline';
 
-interface ApiResponse<T> {
-  success: boolean;
-  chart?: T;
-  error?: string;
-  message?: string;
-}
-
-export interface ChartRequest {
-  birthDate: string;
-  birthTime: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-}
-
-export interface Planet {
-  name: string;
-  sign: string;
-  signIndex: number;
-  degree: number;
-  longitude: number;
-  nakshatra: string;
-  nakshatraPada: number;
-  house: number;
-  isRetrograde: boolean;
-}
-
-export interface House {
-  number: number;
-  sign: string;
-  signIndex: number;
-  degree: number;
-  longitude: number;
-}
-
-export interface DashaPeriod {
-  planet: string;
-  startDate: string;
-  endDate: string;
-  level: 'maha' | 'antar' | 'pratyantar';
-}
-
-export interface BirthChart {
-  id: string;
-  birthDate: string;
-  birthTime: string;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  ascendant: Planet;
-  planets: Planet[];
-  houses: House[];
-  dashas: DashaPeriod[];
-  ayanamsa: number;
-  ayanamsaName: string;
-  calculatedAt: string;
-}
+// Legacy API client wrapper for backward compatibility
+// New code should use the generated services directly (ChartService, ReadingService, etc.)
+import {
+  ChartService,
+  ReadingService,
+  DefaultService,
+  type ChartRequest as GeneratedChartRequest,
+  type BirthChart,
+  type Reading,
+  type ReadingCategory,
+} from './generated';
 
 class ApiClient {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = BASE_URL;
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-
-    const config: RequestInit = {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    };
-
-    console.log(`API Request: ${options.method || 'GET'} ${url}`);
-
-    try {
-      const response = await fetch(url, config);
-      const data = await response.json();
-
-      console.log(`API Response: ${response.status}`, data?.success);
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('API Error:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Network error');
-    }
-  }
-
-  async generateChart(request: ChartRequest): Promise<BirthChart> {
-    const response = await this.request<ApiResponse<BirthChart>>(
-      '/api/chart/generate',
-      {
-        method: 'POST',
-        body: JSON.stringify(request),
-      }
-    );
-
+  async generateChart(request: GeneratedChartRequest): Promise<BirthChart> {
+    const response = await ChartService.generateChart(request);
     if (!response.success || !response.chart) {
-      throw new Error(response.error || 'Failed to generate chart');
+      throw new Error('Failed to generate chart');
     }
-
     return response.chart;
   }
 
   async getChart(id: string): Promise<BirthChart> {
-    const response = await this.request<ApiResponse<BirthChart>>(
-      `/api/chart/${id}`
-    );
-
+    const response = await ChartService.getChart(id);
     if (!response.success || !response.chart) {
-      throw new Error(response.error || 'Chart not found');
+      throw new Error('Chart not found');
     }
-
     return response.chart;
   }
 
   async healthCheck(): Promise<boolean> {
     try {
-      await this.request('/health');
+      await DefaultService.healthCheck();
       return true;
     } catch {
       return false;
     }
+  }
+
+  async getReadingCategories(): Promise<ReadingCategory[]> {
+    const response = await ReadingService.getReadingCategories();
+    return response.categories || [];
+  }
+
+  async getReading(chartId: string, category: string): Promise<Reading> {
+    const response = await ReadingService.getCategoryReading(
+      chartId,
+      category as ReadingCategoryId
+    );
+    if (!response.success || !response.reading) {
+      throw new Error('Failed to get reading');
+    }
+    return response.reading;
+  }
+
+  async askQuestion(chartId: string, question: string, previousReadings: string[] = []): Promise<string> {
+    const response = await ReadingService.askQuestion(chartId, {
+      question,
+      previousReadings,
+    });
+    if (!response.success || !response.response) {
+      throw new Error('Failed to get answer');
+    }
+    return response.response;
   }
 }
 

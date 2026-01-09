@@ -1,11 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { calculateChart, testCalculation } from '../services/astrology/calculator.js';
-import { ChartRequest } from '../services/astrology/types.js';
+import { ChartRequest, BirthChart } from '../services/astrology/types.js';
 
 const router = Router();
 
 // In-memory storage for charts (replace with database later)
-const chartStorage = new Map<string, any>();
+export const chartStorage = new Map<string, BirthChart>();
+
+// Helper to get a chart by ID (exported for use by other routes)
+export function getChartById(id: string): BirthChart | undefined {
+  return chartStorage.get(id);
+}
 
 /**
  * POST /api/chart/generate
@@ -13,7 +18,7 @@ const chartStorage = new Map<string, any>();
  */
 router.post('/generate', (req: Request, res: Response) => {
   try {
-    const { birthDate, birthTime, latitude, longitude, timezone } = req.body as ChartRequest;
+    const { name, birthDate, birthTime, place, latitude, longitude, timezone } = req.body as ChartRequest;
 
     // Validate required fields
     if (!birthDate || !birthTime || latitude === undefined || longitude === undefined) {
@@ -42,8 +47,10 @@ router.post('/generate', (req: Request, res: Response) => {
 
     // Calculate the chart
     const chart = calculateChart({
+      name,
       birthDate,
       birthTime,
+      place,
       latitude,
       longitude,
       timezone: timezone || 'UTC',
@@ -66,37 +73,9 @@ router.post('/generate', (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/chart/:id
- * Retrieve a saved chart by ID
- */
-router.get('/:id', (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const chart = chartStorage.get(id);
-
-    if (!chart) {
-      res.status(404).json({
-        error: 'Chart not found',
-      });
-      return;
-    }
-
-    res.json({
-      success: true,
-      chart,
-    });
-  } catch (error) {
-    console.error('Error retrieving chart:', error);
-    res.status(500).json({
-      error: 'Failed to retrieve chart',
-    });
-  }
-});
-
-/**
  * GET /api/chart/test/calculate
  * Test endpoint with hardcoded date
+ * NOTE: Must be defined before /:id to avoid route conflict
  */
 router.get('/test/calculate', (_req: Request, res: Response) => {
   try {
@@ -112,6 +91,37 @@ router.get('/test/calculate', (_req: Request, res: Response) => {
     res.status(500).json({
       error: 'Test calculation failed',
       message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /api/chart/:id
+ * Retrieve a saved chart by ID
+ */
+router.get('/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const chart = chartStorage.get(id);
+
+    if (!chart) {
+      res.status(404).json({
+        success: false,
+        error: 'Chart not found',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      chart,
+    });
+  } catch (error) {
+    console.error('Error retrieving chart:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve chart',
     });
   }
 });

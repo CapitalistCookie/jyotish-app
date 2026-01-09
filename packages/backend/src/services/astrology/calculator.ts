@@ -408,8 +408,10 @@ export function calculateChart(request: ChartRequest): BirthChart {
 
   return {
     id: uuidv4(),
+    name: request.name,
     birthDate,
     birthTime: request.birthTime,
+    place: request.place,
     latitude: request.latitude,
     longitude: request.longitude,
     timezone: request.timezone,

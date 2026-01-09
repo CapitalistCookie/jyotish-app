@@ -1,6 +1,7 @@
 import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Text, Button } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { useChartStore } from '../../stores/useChartStore';
 import { useOnboardingStore } from '../../stores/useOnboardingStore';
@@ -105,6 +106,23 @@ export default function ChartScreen() {
       <View style={styles.infoSection}>
         <Text style={styles.infoLabel}>Ayanamsa: {chart.ayanamsaName}</Text>
         <Text style={styles.infoLabel}>Value: {chart.ayanamsa.toFixed(4)}°</Text>
+      </View>
+
+      {/* View Reading Button */}
+      <View style={styles.readingSection}>
+        <Button
+          mode="contained"
+          onPress={() => router.push('/(main)/summary')}
+          style={styles.readingButton}
+          labelStyle={styles.readingButtonLabel}
+          contentStyle={styles.readingButtonContent}
+          icon="sparkles"
+        >
+          View Your Reading
+        </Button>
+        <Text style={styles.readingHint}>
+          Get personalized insights powered by AI
+        </Text>
       </View>
     </ScrollView>
   );
@@ -235,6 +253,30 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 11,
+    color: Colors.textMuted,
+  },
+  readingSection: {
+    marginTop: 32,
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  readingButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 30,
+    minWidth: 220,
+  },
+  readingButtonContent: {
+    paddingVertical: 8,
+  },
+  readingButtonLabel: {
+    color: Colors.background,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  readingHint: {
+    marginTop: 12,
+    fontSize: 13,
     color: Colors.textMuted,
   },
 });

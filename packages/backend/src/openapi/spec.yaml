@@ -1,0 +1,801 @@
+openapi: 3.0.3
+info:
+  title: Jyotish API
+  description: |
+    Vedic Astrology API for birth chart calculation and AI-powered readings.
+
+    ## Authentication
+    Most endpoints require JWT authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <token>
+    ```
+
+    ## Rate Limiting
+    API requests are rate limited. Check response headers for limit information.
+  version: 1.0.0
+  contact:
+    name: Jyotish Support
+  license:
+    name: MIT
+
+servers:
+  - url: /
+    description: Current server (relative URL)
+  - url: http://localhost:3001
+    description: Local development
+  - url: http://192.168.1.225:3001
+    description: LAN development
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Chart
+    description: Birth chart generation and retrieval
+  - name: Reading
+    description: AI-powered astrological readings
+  - name: Subscription
+    description: Subscription management
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                  service:
+                    type: string
+                    example: jyotish-backend
+
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      operationId: registerUser
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/login:
+    post:
+      summary: Login user
+      operationId: loginUser
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/me:
+    get:
+      summary: Get current user
+      operationId: getCurrentUser
+      tags:
+        - Auth
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/chart/generate:
+    post:
+      summary: Generate a birth chart
+      operationId: generateChart
+      tags:
+        - Chart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChartRequest'
+      responses:
+        '200':
+          description: Chart generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartResponse'
+        '400':
+          description: Invalid birth details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/chart/{id}:
+    get:
+      summary: Get a saved chart
+      operationId: getChart
+      tags:
+        - Chart
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+      responses:
+        '200':
+          description: Chart retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartResponse'
+        '404':
+          description: Chart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/chart/test/calculate:
+    get:
+      summary: Test chart calculation
+      operationId: testCalculation
+      tags:
+        - Chart
+      responses:
+        '200':
+          description: Test calculation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  chart:
+                    $ref: '#/components/schemas/BirthChart'
+
+  /api/reading/categories:
+    get:
+      summary: Get available reading categories
+      operationId: getReadingCategories
+      tags:
+        - Reading
+      responses:
+        '200':
+          description: List of available categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriesResponse'
+
+  /api/reading/{chartId}/summary:
+    get:
+      summary: Get AI-generated summary reading
+      operationId: getSummaryReading
+      tags:
+        - Reading
+      parameters:
+        - name: chartId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+      responses:
+        '200':
+          description: Summary reading generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingResponse'
+        '404':
+          description: Chart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reading/{chartId}/{category}:
+    get:
+      summary: Get category-specific reading
+      operationId: getCategoryReading
+      tags:
+        - Reading
+      parameters:
+        - name: chartId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [summary, love, career, finances, health, timeline]
+          description: Reading category
+      responses:
+        '200':
+          description: Reading generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingResponse'
+        '400':
+          description: Invalid category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Chart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reading/{chartId}/chat:
+    post:
+      summary: Ask a follow-up question
+      operationId: askQuestion
+      tags:
+        - Reading
+      parameters:
+        - name: chartId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Question answered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '404':
+          description: Chart not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reading/{chartId}/cached:
+    get:
+      summary: Get cached readings for a chart
+      operationId: getCachedReadings
+      tags:
+        - Reading
+      parameters:
+        - name: chartId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chart ID
+      responses:
+        '200':
+          description: Cached readings list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CachedReadingsResponse'
+
+  /api/subscription/status:
+    get:
+      summary: Get subscription status
+      operationId: getSubscriptionStatus
+      tags:
+        - Subscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionStatus'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Auth Schemas
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          minLength: 6
+          maxLength: 100
+          example: securePassword123
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          example: securePassword123
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        token:
+          type: string
+          description: JWT token
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/User'
+
+    # Chart Schemas
+    ChartRequest:
+      type: object
+      required:
+        - birthDate
+        - birthTime
+        - latitude
+        - longitude
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: 'John Doe'
+          description: Name of the person (optional)
+        birthDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          example: '1990-05-15'
+          description: Birth date in YYYY-MM-DD format
+        birthTime:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: '14:30'
+          description: Birth time in HH:MM format (24-hour)
+        place:
+          type: string
+          maxLength: 200
+          example: 'New York, NY, USA'
+          description: Birth place name (optional, for display)
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          example: 40.7128
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          example: -74.006
+        timezone:
+          type: string
+          example: 'America/New_York'
+          description: IANA timezone identifier
+
+    ChartResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        chart:
+          $ref: '#/components/schemas/BirthChart'
+
+    BirthChart:
+      type: object
+      required:
+        - id
+        - birthDate
+        - birthTime
+        - latitude
+        - longitude
+        - timezone
+        - ascendant
+        - planets
+        - houses
+        - dashas
+        - ayanamsa
+        - ayanamsaName
+        - calculatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Name of the person
+        birthDate:
+          type: string
+          format: date-time
+        birthTime:
+          type: string
+        place:
+          type: string
+          description: Birth place name
+        latitude:
+          type: number
+        longitude:
+          type: number
+        timezone:
+          type: string
+        ascendant:
+          $ref: '#/components/schemas/Planet'
+        planets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Planet'
+        houses:
+          type: array
+          items:
+            $ref: '#/components/schemas/House'
+        dashas:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashaPeriod'
+        ayanamsa:
+          type: number
+          description: Ayanamsa value in degrees
+        ayanamsaName:
+          type: string
+          example: Lahiri
+        calculatedAt:
+          type: string
+          format: date-time
+
+    Planet:
+      type: object
+      required:
+        - name
+        - sign
+        - signIndex
+        - degree
+        - longitude
+        - nakshatra
+        - nakshatraPada
+        - house
+        - isRetrograde
+      properties:
+        name:
+          type: string
+          enum: [Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, Ketu]
+        sign:
+          type: string
+          enum: [Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, Scorpio, Sagittarius, Capricorn, Aquarius, Pisces]
+        signIndex:
+          type: integer
+          minimum: 0
+          maximum: 11
+        degree:
+          type: number
+          minimum: 0
+          maximum: 30
+        longitude:
+          type: number
+          minimum: 0
+          maximum: 360
+        nakshatra:
+          type: string
+        nakshatraPada:
+          type: integer
+          minimum: 1
+          maximum: 4
+        house:
+          type: integer
+          minimum: 1
+          maximum: 12
+        isRetrograde:
+          type: boolean
+
+    House:
+      type: object
+      required:
+        - number
+        - sign
+        - signIndex
+        - degree
+        - longitude
+      properties:
+        number:
+          type: integer
+          minimum: 1
+          maximum: 12
+        sign:
+          type: string
+        signIndex:
+          type: integer
+        degree:
+          type: number
+        longitude:
+          type: number
+
+    DashaPeriod:
+      type: object
+      required:
+        - planet
+        - startDate
+        - endDate
+        - level
+      properties:
+        planet:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [maha, antar, pratyantar]
+
+    # Reading Schemas
+    CategoriesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadingCategory'
+
+    ReadingCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [summary, love, career, finances, health, timeline]
+        name:
+          type: string
+        description:
+          type: string
+
+    ReadingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        reading:
+          $ref: '#/components/schemas/Reading'
+
+    Reading:
+      type: object
+      required:
+        - category
+        - content
+        - cached
+        - chartId
+        - generatedAt
+      properties:
+        category:
+          type: string
+        content:
+          type: string
+        cached:
+          type: boolean
+        chartId:
+          type: string
+          format: uuid
+        generatedAt:
+          type: string
+          format: date-time
+
+    ChatRequest:
+      type: object
+      required:
+        - question
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 500
+        previousReadings:
+          type: array
+          items:
+            type: string
+
+    ChatResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        response:
+          type: string
+        chartId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    CachedReadingsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        chartId:
+          type: string
+        cachedReadings:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+              hasContent:
+                type: boolean
+
+    # Subscription Schemas
+    SubscriptionStatus:
+      type: object
+      properties:
+        success:
+          type: boolean
+        subscription:
+          type: object
+          properties:
+            plan:
+              type: string
+              enum: [free, premium, pro]
+            status:
+              type: string
+              enum: [active, cancelled, expired]
+            expiresAt:
+              type: string
+              format: date-time
+              nullable: true
+            features:
+              type: array
+              items:
+                type: string
+
+    # Error Schema
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string

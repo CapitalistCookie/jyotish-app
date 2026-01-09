@@ -67,8 +67,10 @@ export interface DashaPeriod {
 
 export interface BirthChart {
   id: string;
+  name?: string;           // Name of the person
   birthDate: Date;
   birthTime: string;       // HH:MM format
+  place?: string;          // Birth place name
   latitude: number;
   longitude: number;
   timezone: string;
@@ -88,8 +90,10 @@ export interface BirthChart {
 }
 
 export interface ChartRequest {
+  name?: string;           // Name of the person
   birthDate: string;       // ISO date string
   birthTime: string;       // HH:MM format
+  place?: string;          // Birth place name
   latitude: number;
   longitude: number;
   timezone: string;

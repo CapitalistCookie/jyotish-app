@@ -95,8 +95,10 @@ export default function OnboardingReview() {
     setError(null);
 
     const request = {
+      name: `${firstName} ${lastName}`.trim() || undefined,
       birthDate: formatDateForApi(birthDate),
       birthTime: formatTimeForApi(birthTime, birthTimeUnknown),
+      place: birthPlace || undefined,
       latitude: latitude || 40.7128, // Default to NYC if not set
       longitude: longitude || -74.006,
       timezone: timezone || 'America/New_York',
