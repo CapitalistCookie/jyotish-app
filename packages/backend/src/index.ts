@@ -13,6 +13,8 @@ import chartRoutes from './routes/chart.js';
 import readingRoutes from './routes/reading.js';
 import aiRoutes from './routes/ai.js';
 import subscriptionRoutes from './routes/subscription.js';
+import affiliateRoutes from './routes/affiliate.js';
+import adminRoutes from './routes/admin.js';
 
 // Load environment variables
 dotenv.config();
@@ -89,6 +91,8 @@ app.use('/api/chart', chartRoutes);
 app.use('/api/reading', readingRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/affiliate', affiliateRoutes);
+app.use('/api/admin', adminRoutes);
 
 // OpenAPI validation error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

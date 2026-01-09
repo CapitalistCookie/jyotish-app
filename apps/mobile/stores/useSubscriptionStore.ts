@@ -32,9 +32,15 @@ export type AccessLevel = 'free' | 'premium';
 interface SubscriptionState {
   // Status
   isPremium: boolean;
-  tier: 'free' | 'premium' | 'pro';
+  tier: 'free' | 'trial' | 'premium' | 'pro';
   expiresAt: Date | null;
   willRenew: boolean;
+
+  // Trial status
+  isTrialing: boolean;
+  trialDaysRemaining: number;
+  trialEndsAt: Date | null;
+  hasUsedTrial: boolean;
 
   // Question usage for free users
   questionsRemaining: number;
@@ -63,6 +69,7 @@ interface SubscriptionActions {
   // Status checks
   checkStatus: () => Promise<void>;
   syncWithBackend: (userId: string) => Promise<void>;
+  checkTrialStatus: (userId: string) => Promise<void>;
 
   // Purchases
   purchase: (pkg: PurchasesPackage) => Promise<boolean>;
@@ -75,6 +82,7 @@ interface SubscriptionActions {
   // Helpers
   hasAccess: (category: ReadingCategory) => boolean;
   canAskQuestion: () => boolean;
+  hasPremiumOrTrial: () => boolean;
 
   // Clear
   reset: () => void;
@@ -85,6 +93,10 @@ const initialState: SubscriptionState = {
   tier: 'free',
   expiresAt: null,
   willRenew: false,
+  isTrialing: false,
+  trialDaysRemaining: 0,
+  trialEndsAt: null,
+  hasUsedTrial: false,
   questionsRemaining: 5,
   questionsLimit: 5,
   questionResetAt: null,
@@ -190,20 +202,51 @@ export const useSubscriptionStore = create<SubscriptionState & SubscriptionActio
       try {
         const response = await apiClient.getSubscriptionStatus(userId);
 
+        const isPremiumOrTrial = response.isPremium || response.tier === 'trial';
+
         set({
           isPremium: response.isPremium,
-          tier: response.tier,
+          tier: response.tier as 'free' | 'trial' | 'premium' | 'pro',
         });
 
-        // Also refresh question usage for free users
-        if (!response.isPremium) {
+        // Check trial status
+        await get().checkTrialStatus(userId);
+
+        // Refresh question usage for free users (not premium or trial)
+        if (!isPremiumOrTrial) {
           await get().refreshQuestionUsage(userId);
         } else {
-          // Premium users have unlimited questions
+          // Premium/trial users have unlimited questions
           set({ questionsRemaining: -1 });
         }
       } catch (error) {
         console.error('Failed to sync with backend:', error);
+      }
+    },
+
+    /**
+     * Check trial status from backend
+     */
+    checkTrialStatus: async (userId: string) => {
+      try {
+        const trialStatus = await apiClient.getTrialStatus(userId);
+
+        set({
+          isTrialing: trialStatus.isActive,
+          trialDaysRemaining: trialStatus.daysRemaining,
+          trialEndsAt: trialStatus.endsAt ? new Date(trialStatus.endsAt) : null,
+          hasUsedTrial: trialStatus.hasUsedTrial,
+        });
+
+        // If trial is active, set tier and grant access
+        if (trialStatus.isActive) {
+          set({
+            tier: 'trial',
+            questionsRemaining: -1, // Unlimited during trial
+          });
+        }
+      } catch (error) {
+        console.error('Failed to check trial status:', error);
       }
     },
 
@@ -318,20 +361,28 @@ export const useSubscriptionStore = create<SubscriptionState & SubscriptionActio
      * Check if user has access to a reading category
      */
     hasAccess: (category: ReadingCategory) => {
-      const { isPremium } = get();
+      const { isPremium, isTrialing } = get();
       const accessLevel = READING_ACCESS[category];
 
       if (accessLevel === 'free') return true;
-      return isPremium;
+      return isPremium || isTrialing;
     },
 
     /**
      * Check if user can ask a question
      */
     canAskQuestion: () => {
-      const { isPremium, questionsRemaining } = get();
-      if (isPremium) return true;
+      const { isPremium, isTrialing, questionsRemaining } = get();
+      if (isPremium || isTrialing) return true;
       return questionsRemaining > 0;
+    },
+
+    /**
+     * Check if user has premium or active trial
+     */
+    hasPremiumOrTrial: () => {
+      const { isPremium, isTrialing } = get();
+      return isPremium || isTrialing;
     },
 
     /**

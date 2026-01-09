@@ -17,10 +17,24 @@ model User {
   password  String   // Hashed password
 
   // Subscription fields
-  subscriptionStatus    String    @default("free") // free, premium, pro
+  subscriptionStatus    String    @default("free") // free, trial, premium, admin
   subscriptionExpiresAt DateTime?
   subscriptionProvider  String?   // revenuecat, stripe, manual
   revenuecatId          String?   @unique
+
+  // Trial fields
+  trialStartedAt DateTime?
+  trialEndsAt    DateTime?
+  trialUsed      Boolean   @default(false)
+
+  // Affiliate fields
+  referralCode   String?   @unique // Their code to share
+  referredBy     String?   // Code they signed up with
+  referredByUser User?     @relation("Referrals", fields: [referredBy], references: [referralCode])
+  referrals      User[]    @relation("Referrals")
+
+  // Role-based access
+  role           String    @default("user") // user, developer, admin
 
   // Question usage tracking
   questionsUsedThisMonth Int       @default(0)
@@ -31,8 +45,9 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  charts         Chart[]
-  chatSessions   ChatSession[]
+  charts            Chart[]
+  chatSessions      ChatSession[]
+  affiliatePartner  AffiliatePartner?
 
   @@map("users")
 }
@@ -126,4 +141,50 @@ model SubscriptionEvent {
   processedAt   DateTime @default(now())
 
   @@map("subscription_events")
+}
+
+// Affiliate partner for referral program
+model AffiliatePartner {
+  id                String   @id @default(uuid())
+  name              String   // "CosmicInfluencer"
+  code              String   @unique // "COSMIC20"
+  discountPercent   Int      @default(0) // 20 = 20% off
+  commissionPercent Int      @default(0) // 30 = 30% commission
+  trialDays         Int      @default(7) // Extended trial for their audience
+  isActive          Boolean  @default(true)
+
+  // Tracking
+  clicks      Int @default(0)
+  signups     Int @default(0)
+  conversions Int @default(0)
+
+  // Payout
+  pendingPayout Decimal @default(0)
+  totalPaid     Decimal @default(0)
+
+  // Relations
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("affiliate_partners")
+}
+
+// Promotional codes
+model PromoCode {
+  id        String    @id @default(uuid())
+  code      String    @unique // "LAUNCH50"
+  type      String    // "trial_extension", "discount", "full_access"
+  value     Int       // days for trial, percent for discount
+  maxUses   Int?      // null = unlimited
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("promo_codes")
 }

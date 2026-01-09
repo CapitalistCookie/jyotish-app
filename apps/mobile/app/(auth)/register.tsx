@@ -1,12 +1,16 @@
+import { useEffect, useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Text, Button } from 'react-native-paper';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { GlowInput } from '../../components/ui/GlowInput';
 import { Colors } from '../../constants/colors';
+import { usePromoStore } from '../../stores';
+import { AuthService } from '../../services/api/client';
 
 const registerSchema = z
   .object({
@@ -24,6 +28,28 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ ref?: string }>();
+  const [registerError, setRegisterError] = useState<string | null>(null);
+
+  const {
+    affiliateCode,
+    affiliateInfo,
+    affiliateLoading,
+    extendedTrialDays,
+    setAffiliateCode,
+    applyAffiliateCode,
+    loadStoredCodes,
+  } = usePromoStore();
+
+  // Load stored codes on mount and check URL params for affiliate code
+  useEffect(() => {
+    loadStoredCodes();
+
+    // Check for affiliate code in URL params (?ref=COSMIC20)
+    if (params.ref && !affiliateCode) {
+      setAffiliateCode(params.ref);
+    }
+  }, [params.ref]);
 
   const {
     control,
@@ -40,10 +66,33 @@ export default function RegisterScreen() {
   });
 
   const onSubmit = async (data: RegisterForm) => {
-    // TODO: Implement actual registration with backend
-    console.log('Register:', data);
-    // Navigate to onboarding after successful registration
-    router.replace('/onboarding');
+    setRegisterError(null);
+
+    try {
+      // Register with backend
+      const response = await AuthService.registerUser({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+      });
+
+      if (!response.success || !response.user) {
+        throw new Error('Registration failed');
+      }
+
+      const userId = response.user.id;
+
+      // Apply affiliate code if present
+      if (affiliateCode && affiliateInfo?.valid && userId) {
+        await applyAffiliateCode(userId);
+      }
+
+      // Navigate to onboarding after successful registration
+      router.replace('/onboarding');
+    } catch (error: any) {
+      console.error('Register error:', error);
+      setRegisterError(error.message || 'Registration failed. Please try again.');
+    }
   };
 
   return (
@@ -58,12 +107,35 @@ export default function RegisterScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Affiliate Banner */}
+        {affiliateInfo?.valid && (
+          <Animated.View entering={FadeIn} style={styles.affiliateBanner}>
+            <Text style={styles.affiliateIcon}>🎁</Text>
+            <View style={styles.affiliateContent}>
+              <Text style={styles.affiliateTitle}>
+                Special offer from {affiliateInfo.name}!
+              </Text>
+              <Text style={styles.affiliateText}>
+                You'll get {extendedTrialDays}-day free trial
+                {affiliateInfo.discountPercent ? ` + ${affiliateInfo.discountPercent}% off` : ''}
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.symbol}>✧</Text>
           <Text style={styles.title}>Begin Your Journey</Text>
           <Text style={styles.subtitle}>Create an account to unlock the stars</Text>
         </View>
+
+        {/* Error Message */}
+        {registerError && (
+          <Animated.View entering={FadeIn} style={styles.errorBanner}>
+            <Text style={styles.errorText}>{registerError}</Text>
+          </Animated.View>
+        )}
 
         {/* Form */}
         <View style={styles.form}>
@@ -221,5 +293,46 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.primary,
     fontWeight: '500',
+  },
+  affiliateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+  },
+  affiliateIcon: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  affiliateContent: {
+    flex: 1,
+  },
+  affiliateTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  affiliateText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  errorBanner: {
+    backgroundColor: Colors.error + '15',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.error + '30',
+  },
+  errorText: {
+    fontSize: 14,
+    color: Colors.error,
+    textAlign: 'center',
   },
 });

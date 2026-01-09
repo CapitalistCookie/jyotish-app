@@ -282,4 +282,153 @@ export interface CategoryWithAccess {
   isLocked: boolean;
 }
 
-export const apiClient = new ApiClient();
+// Affiliate-related types
+export interface AffiliateInfo {
+  valid: boolean;
+  name?: string;
+  discountPercent?: number;
+  trialDays?: number;
+  error?: string;
+}
+
+export interface AffiliateApplyResult {
+  applied: boolean;
+  error?: string;
+  benefits?: {
+    trialDays: number;
+    trialEndsAt: string;
+    discountPercent: number;
+    affiliateName: string;
+  };
+}
+
+export interface PromoCodeInfo {
+  valid: boolean;
+  type?: 'trial_extension' | 'discount' | 'full_access';
+  value?: number;
+  error?: string;
+}
+
+export interface PromoApplyResult {
+  success: boolean;
+  error?: string;
+  benefits?: {
+    type: 'trial_extension' | 'discount' | 'full_access';
+    value: number;
+    description: string;
+  };
+}
+
+export interface TrialStatus {
+  isActive: boolean;
+  daysRemaining: number;
+  endsAt: string | null;
+  hasUsedTrial: boolean;
+}
+
+// Extend ApiClient with affiliate and promo methods
+class ApiClientExtended extends ApiClient {
+  /**
+   * Track affiliate link click
+   */
+  async trackAffiliateClick(code: string): Promise<AffiliateInfo> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/affiliate/track/${code}`);
+      return await response.json();
+    } catch (error) {
+      return { valid: false, error: 'Failed to track affiliate' };
+    }
+  }
+
+  /**
+   * Validate affiliate code without tracking
+   */
+  async validateAffiliateCode(code: string): Promise<AffiliateInfo> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/affiliate/validate/${code}`);
+      return await response.json();
+    } catch (error) {
+      return { valid: false, error: 'Failed to validate affiliate code' };
+    }
+  }
+
+  /**
+   * Apply affiliate code during signup
+   */
+  async applyAffiliateCode(code: string, userId: string): Promise<AffiliateApplyResult> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/affiliate/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, userId }),
+      });
+      return await response.json();
+    } catch (error) {
+      return { applied: false, error: 'Failed to apply affiliate code' };
+    }
+  }
+
+  /**
+   * Validate promo code
+   */
+  async validatePromoCode(code: string): Promise<PromoCodeInfo> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/subscription/promo/validate/${code}`);
+      if (!response.ok) {
+        return { valid: false, error: 'Invalid promo code' };
+      }
+      return await response.json();
+    } catch (error) {
+      return { valid: false, error: 'Failed to validate promo code' };
+    }
+  }
+
+  /**
+   * Apply promo code
+   */
+  async applyPromoCode(code: string, userId: string): Promise<PromoApplyResult> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/subscription/promo/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, userId }),
+      });
+      return await response.json();
+    } catch (error) {
+      return { success: false, error: 'Failed to apply promo code' };
+    }
+  }
+
+  /**
+   * Get trial status
+   */
+  async getTrialStatus(userId: string): Promise<TrialStatus> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/subscription/trial/${userId}`);
+      if (!response.ok) {
+        return { isActive: false, daysRemaining: 0, endsAt: null, hasUsedTrial: false };
+      }
+      return await response.json();
+    } catch (error) {
+      return { isActive: false, daysRemaining: 0, endsAt: null, hasUsedTrial: false };
+    }
+  }
+
+  /**
+   * Start trial
+   */
+  async startTrial(userId: string, days?: number): Promise<{ success: boolean; endsAt?: string; error?: string }> {
+    try {
+      const response = await fetch(`${OpenAPI.BASE}/api/subscription/trial/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, days }),
+      });
+      return await response.json();
+    } catch (error) {
+      return { success: false, error: 'Failed to start trial' };
+    }
+  }
+}
+
+export const apiClient = new ApiClientExtended();

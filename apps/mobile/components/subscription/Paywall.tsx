@@ -10,6 +10,8 @@ import {
   ScrollView,
   Linking,
   Alert,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Text,
@@ -22,8 +24,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PurchasesPackage } from 'react-native-purchases';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { Colors } from '../../constants/colors';
-import { useSubscriptionStore } from '../../stores';
+import { useSubscriptionStore, usePromoStore } from '../../stores';
 import { formatPrice, getSubscriptionPeriod, calculateSavings } from '../../services/subscription/revenuecat';
 
 interface PaywallProps {
@@ -58,6 +61,8 @@ const BENEFITS = [
 export function Paywall({ visible, onDismiss, onSuccess }: PaywallProps) {
   const insets = useSafeAreaInsets();
   const [selectedPkg, setSelectedPkg] = useState<'monthly' | 'annual'>('annual');
+  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
 
   const {
     monthlyPackage,
@@ -68,6 +73,25 @@ export function Paywall({ visible, onDismiss, onSuccess }: PaywallProps) {
     purchase,
     restore,
   } = useSubscriptionStore();
+
+  const {
+    affiliateInfo,
+    promoInfo,
+    promoLoading,
+    appliedDiscount,
+    validatePromoCode,
+    clearPromoCode,
+  } = usePromoStore();
+
+  const handleApplyPromo = async () => {
+    if (!promoInput.trim()) return;
+    const result = await validatePromoCode(promoInput.trim());
+    if (result.valid) {
+      setShowPromoInput(false);
+    }
+  };
+
+  const totalDiscount = appliedDiscount;
 
   const handlePurchase = async () => {
     const pkg = selectedPkg === 'monthly' ? monthlyPackage : annualPackage;
@@ -167,6 +191,7 @@ export function Paywall({ visible, onDismiss, onSuccess }: PaywallProps) {
                 isSelected={selectedPkg === 'annual'}
                 onPress={() => setSelectedPkg('annual')}
                 isBestValue
+                discount={totalDiscount}
               />
 
               {/* Monthly Option */}
@@ -176,8 +201,56 @@ export function Paywall({ visible, onDismiss, onSuccess }: PaywallProps) {
                 period="month"
                 isSelected={selectedPkg === 'monthly'}
                 onPress={() => setSelectedPkg('monthly')}
+                discount={totalDiscount}
               />
             </View>
+
+            {/* Discount Applied Banner */}
+            {totalDiscount > 0 && (
+              <Animated.View entering={FadeIn} style={styles.discountBanner}>
+                <Text style={styles.discountIcon}>🎉</Text>
+                <Text style={styles.discountText}>
+                  {totalDiscount}% discount applied!
+                </Text>
+                {promoInfo?.valid && (
+                  <TouchableOpacity onPress={clearPromoCode}>
+                    <Text style={styles.discountRemove}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </Animated.View>
+            )}
+
+            {/* Promo Code Section */}
+            {!totalDiscount && (
+              <View style={styles.promoSection}>
+                {showPromoInput ? (
+                  <View style={styles.promoInputContainer}>
+                    <TextInput
+                      style={styles.promoInput}
+                      placeholder="Enter promo code"
+                      placeholderTextColor={Colors.textMuted}
+                      value={promoInput}
+                      onChangeText={setPromoInput}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity
+                      style={styles.promoApplyButton}
+                      onPress={handleApplyPromo}
+                      disabled={promoLoading}
+                    >
+                      <Text style={styles.promoApplyText}>
+                        {promoLoading ? '...' : 'Apply'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setShowPromoInput(true)}>
+                    <Text style={styles.promoLink}>Have a promo code?</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
             {/* Error Message */}
             {error && (
@@ -252,6 +325,7 @@ interface PricingOptionProps {
   isSelected: boolean;
   onPress: () => void;
   isBestValue?: boolean;
+  discount?: number;
 }
 
 function PricingOption({
@@ -262,7 +336,17 @@ function PricingOption({
   isSelected,
   onPress,
   isBestValue,
+  discount,
 }: PricingOptionProps) {
+  // Calculate discounted price display
+  const displayPrice = discount && discount > 0
+    ? `${price.replace(/[\d.]+/, (match) => {
+        const original = parseFloat(match);
+        const discounted = original * (1 - discount / 100);
+        return discounted.toFixed(2);
+      })}`
+    : price;
+
   return (
     <View
       style={[
@@ -300,7 +384,14 @@ function PricingOption({
             </View>
           </View>
           <View style={styles.pricingRight}>
-            <Text style={styles.priceText}>{price}</Text>
+            {discount && discount > 0 ? (
+              <>
+                <Text style={styles.originalPrice}>{price}</Text>
+                <Text style={styles.discountedPrice}>{displayPrice}</Text>
+              </>
+            ) : (
+              <Text style={styles.priceText}>{price}</Text>
+            )}
             <Text style={styles.periodText}>/{period}</Text>
           </View>
         </View>
@@ -517,6 +608,76 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
     lineHeight: 16,
+  },
+  promoSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  promoInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  promoInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  promoApplyButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  promoApplyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.background,
+  },
+  promoLink: {
+    fontSize: 14,
+    color: Colors.primary,
+    textDecorationLine: 'underline',
+  },
+  discountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.success + '20',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  discountIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  discountText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.success,
+    flex: 1,
+  },
+  discountRemove: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textDecorationLine: 'underline',
+    marginLeft: 8,
+  },
+  originalPrice: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  discountedPrice: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.success,
   },
 });
 

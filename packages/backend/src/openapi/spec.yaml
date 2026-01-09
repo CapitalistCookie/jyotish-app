@@ -37,6 +37,10 @@ tags:
     description: AI provider management
   - name: Subscription
     description: Subscription management
+  - name: Affiliate
+    description: Affiliate program management
+  - name: Admin
+    description: Admin panel endpoints (requires admin role)
 
 paths:
   /health:
@@ -581,6 +585,531 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuestionUsageResponse'
+
+  # Affiliate Routes
+  /api/affiliate/track/{code}:
+    get:
+      summary: Track affiliate link click
+      operationId: trackAffiliateClick
+      tags:
+        - Affiliate
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Affiliate code
+      responses:
+        '200':
+          description: Affiliate code valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AffiliateTrackResponse'
+        '404':
+          description: Affiliate code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/affiliate/validate/{code}:
+    get:
+      summary: Validate affiliate code without tracking
+      operationId: validateAffiliateCode
+      tags:
+        - Affiliate
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Affiliate code
+      responses:
+        '200':
+          description: Affiliate code valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AffiliateValidateResponse'
+        '404':
+          description: Affiliate code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/affiliate/apply:
+    post:
+      summary: Apply affiliate code during signup
+      operationId: applyAffiliateCode
+      tags:
+        - Affiliate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AffiliateApplyRequest'
+      responses:
+        '200':
+          description: Affiliate code applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AffiliateApplyResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Affiliate code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/affiliate/stats:
+    get:
+      summary: Get affiliate performance stats
+      operationId: getAffiliateStats
+      tags:
+        - Affiliate
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Affiliate stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AffiliateStatsResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not an affiliate partner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/affiliate/record-conversion:
+    post:
+      summary: Record affiliate conversion
+      operationId: recordAffiliateConversion
+      tags:
+        - Affiliate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                purchaseAmount:
+                  type: number
+      responses:
+        '200':
+          description: Conversion recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recorded:
+                    type: boolean
+                  affiliateCode:
+                    type: string
+                  commission:
+                    type: number
+
+  # Admin Routes
+  /api/admin/users:
+    get:
+      summary: List all users
+      operationId: adminListUsers
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [user, developer, admin]
+        - name: subscriptionStatus
+          in: query
+          schema:
+            type: string
+            enum: [free, trial, premium]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUsersResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/users/{id}:
+    get:
+      summary: Get user details
+      operationId: adminGetUser
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/users/{id}/grant-premium:
+    post:
+      summary: Grant premium access manually
+      operationId: adminGrantPremium
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantPremiumRequest'
+      responses:
+        '200':
+          description: Premium granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantPremiumResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/users/{id}/set-role:
+    post:
+      summary: Set user role
+      operationId: adminSetUserRole
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRoleRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  userId:
+                    type: string
+                  role:
+                    type: string
+
+  /api/admin/affiliates:
+    get:
+      summary: List all affiliates
+      operationId: adminListAffiliates
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: activeOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Affiliates list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAffiliatesResponse'
+    post:
+      summary: Create affiliate partner
+      operationId: adminCreateAffiliate
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAffiliateRequest'
+      responses:
+        '201':
+          description: Affiliate created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAffiliateResponse'
+        '400':
+          description: Invalid request or code exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/affiliates/{id}:
+    patch:
+      summary: Update affiliate partner
+      operationId: adminUpdateAffiliate
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAffiliateRequest'
+      responses:
+        '200':
+          description: Affiliate updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  affiliate:
+                    $ref: '#/components/schemas/AffiliatePartner'
+
+  /api/admin/affiliates/{id}/payout:
+    post:
+      summary: Record affiliate payout
+      operationId: adminRecordAffiliatePayout
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: number
+                  minimum: 0.01
+      responses:
+        '200':
+          description: Payout recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutResponse'
+        '400':
+          description: Invalid amount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/promo-codes:
+    get:
+      summary: List all promo codes
+      operationId: adminListPromoCodes
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: activeOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Promo codes list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPromoCodesResponse'
+    post:
+      summary: Create promo code
+      operationId: adminCreatePromoCode
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromoCodeRequest'
+      responses:
+        '201':
+          description: Promo code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePromoCodeResponse'
+        '400':
+          description: Invalid request or code exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/promo-codes/{code}:
+    delete:
+      summary: Deactivate promo code
+      operationId: adminDeactivatePromoCode
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Promo code deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  code:
+                    type: string
+                  message:
+                    type: string
+        '404':
+          description: Promo code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/admin/stats:
+    get:
+      summary: Get admin dashboard stats
+      operationId: adminGetStats
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatsResponse'
 
 components:
   securitySchemes:
@@ -1148,3 +1677,479 @@ components:
           type: string
         path:
           type: string
+
+    # Affiliate Schemas
+    AffiliateTrackResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        name:
+          type: string
+        discountPercent:
+          type: integer
+        trialDays:
+          type: integer
+
+    AffiliateValidateResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        name:
+          type: string
+        discountPercent:
+          type: integer
+        trialDays:
+          type: integer
+
+    AffiliateApplyRequest:
+      type: object
+      required:
+        - code
+        - userId
+      properties:
+        code:
+          type: string
+        userId:
+          type: string
+
+    AffiliateApplyResponse:
+      type: object
+      properties:
+        applied:
+          type: boolean
+        benefits:
+          type: object
+          properties:
+            trialDays:
+              type: integer
+            trialEndsAt:
+              type: string
+              format: date-time
+            discountPercent:
+              type: integer
+            affiliateName:
+              type: string
+
+    AffiliateStatsResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        clicks:
+          type: integer
+        signups:
+          type: integer
+        conversions:
+          type: integer
+        conversionRate:
+          type: string
+        pendingPayout:
+          type: number
+        totalPaid:
+          type: number
+        discountPercent:
+          type: integer
+        commissionPercent:
+          type: integer
+        trialDays:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    AffiliatePartner:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        discountPercent:
+          type: integer
+        commissionPercent:
+          type: integer
+        trialDays:
+          type: integer
+        isActive:
+          type: boolean
+        clicks:
+          type: integer
+        signups:
+          type: integer
+        conversions:
+          type: integer
+        pendingPayout:
+          type: number
+        totalPaid:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    # Admin Schemas
+    AdminUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserSummary'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    AdminUserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [user, developer, admin]
+        subscriptionStatus:
+          type: string
+          enum: [free, trial, premium]
+        subscriptionExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialUsed:
+          type: boolean
+        referralCode:
+          type: string
+          nullable: true
+        referredBy:
+          type: string
+          nullable: true
+        questionsUsedThisMonth:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    AdminUserDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        subscriptionStatus:
+          type: string
+        subscriptionExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialStartedAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        trialUsed:
+          type: boolean
+        referralCode:
+          type: string
+          nullable: true
+        referredBy:
+          type: string
+          nullable: true
+        charts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+        affiliatePartner:
+          $ref: '#/components/schemas/AffiliatePartner'
+        _count:
+          type: object
+          properties:
+            charts:
+              type: integer
+            chatSessions:
+              type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    GrantPremiumRequest:
+      type: object
+      required:
+        - days
+        - reason
+      properties:
+        days:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+
+    GrantPremiumResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        userId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        days:
+          type: integer
+        reason:
+          type: string
+
+    SetRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum: [user, developer, admin]
+
+    AdminAffiliatesResponse:
+      type: object
+      properties:
+        affiliates:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              code:
+                type: string
+              discountPercent:
+                type: integer
+              commissionPercent:
+                type: integer
+              trialDays:
+                type: integer
+              isActive:
+                type: boolean
+              clicks:
+                type: integer
+              signups:
+                type: integer
+              conversions:
+                type: integer
+              conversionRate:
+                type: string
+              pendingPayout:
+                type: number
+              totalPaid:
+                type: number
+              user:
+                type: object
+                nullable: true
+                properties:
+                  email:
+                    type: string
+                  name:
+                    type: string
+              createdAt:
+                type: string
+                format: date-time
+
+    CreateAffiliateRequest:
+      type: object
+      required:
+        - name
+        - code
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        discountPercent:
+          type: integer
+          default: 0
+        commissionPercent:
+          type: integer
+          default: 0
+        trialDays:
+          type: integer
+          default: 7
+        userId:
+          type: string
+          format: uuid
+
+    CreateAffiliateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        affiliate:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            code:
+              type: string
+            discountPercent:
+              type: integer
+            commissionPercent:
+              type: integer
+            trialDays:
+              type: integer
+
+    UpdateAffiliateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        discountPercent:
+          type: integer
+        commissionPercent:
+          type: integer
+        trialDays:
+          type: integer
+        isActive:
+          type: boolean
+
+    PayoutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        affiliateId:
+          type: string
+        amount:
+          type: number
+        newPendingPayout:
+          type: number
+        newTotalPaid:
+          type: number
+
+    AdminPromoCodesResponse:
+      type: object
+      properties:
+        promoCodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromoCodeInfo'
+
+    PromoCodeInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        type:
+          type: string
+          enum: [trial_extension, discount, full_access]
+        value:
+          type: integer
+        isValid:
+          type: boolean
+
+    CreatePromoCodeRequest:
+      type: object
+      required:
+        - code
+        - type
+        - value
+      properties:
+        code:
+          type: string
+        type:
+          type: string
+          enum: [trial_extension, discount, full_access]
+        value:
+          type: integer
+        maxUses:
+          type: integer
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreatePromoCodeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        promoCode:
+          $ref: '#/components/schemas/PromoCodeInfo'
+
+    AdminStatsResponse:
+      type: object
+      properties:
+        users:
+          type: object
+          properties:
+            total:
+              type: integer
+            newThisMonth:
+              type: integer
+            premium:
+              type: integer
+            trial:
+              type: integer
+            free:
+              type: integer
+        content:
+          type: object
+          properties:
+            totalCharts:
+              type: integer
+        affiliates:
+          type: object
+          properties:
+            totalClicks:
+              type: integer
+            totalSignups:
+              type: integer
+            totalConversions:
+              type: integer
+            pendingPayouts:
+              type: number
+        conversion:
+          type: object
+          properties:
+            trialToSubscription:
+              type: string
