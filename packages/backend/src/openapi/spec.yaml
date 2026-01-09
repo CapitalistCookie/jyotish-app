@@ -33,6 +33,8 @@ tags:
     description: Birth chart generation and retrieval
   - name: Reading
     description: AI-powered astrological readings
+  - name: AI
+    description: AI provider management
   - name: Subscription
     description: Subscription management
 
@@ -243,6 +245,13 @@ paths:
             type: string
             format: uuid
           description: Chart ID
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [claude, deepseek, gemini, openai]
+          description: Preferred AI provider (optional, uses configured default if not specified)
       responses:
         '200':
           description: Summary reading generated
@@ -284,6 +293,13 @@ paths:
             type: string
             enum: [summary, love, career, finances, health, timeline]
           description: Reading category
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [claude, deepseek, gemini, openai]
+          description: Preferred AI provider (optional, uses configured default if not specified)
       responses:
         '200':
           description: Reading generated
@@ -318,6 +334,13 @@ paths:
             type: string
             format: uuid
           description: Chart ID
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [claude, deepseek, gemini, openai]
+          description: Preferred AI provider (optional, uses configured default if not specified)
       requestBody:
         required: true
         content:
@@ -359,6 +382,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CachedReadingsResponse'
+
+  /api/ai/providers:
+    get:
+      summary: List available AI providers
+      operationId: getAIProviders
+      tags:
+        - AI
+      description: Returns a list of all configured AI providers and their current availability status
+      responses:
+        '200':
+          description: List of AI providers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProvidersResponse'
 
   /api/subscription/status:
     get:
@@ -714,6 +752,10 @@ components:
         generatedAt:
           type: string
           format: date-time
+        provider:
+          type: string
+          description: AI provider used to generate the reading
+          enum: [claude, deepseek, gemini, openai]
 
     ChatRequest:
       type: object
@@ -741,6 +783,10 @@ components:
         timestamp:
           type: string
           format: date-time
+        provider:
+          type: string
+          description: AI provider used to generate the response
+          enum: [claude, deepseek, gemini, openai]
 
     CachedReadingsResponse:
       type: object
@@ -761,6 +807,34 @@ components:
                 format: date-time
               hasContent:
                 type: boolean
+
+    # AI Schemas
+    AIProvidersResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AIProviderInfo'
+        defaultProvider:
+          type: string
+          description: The currently configured default provider
+          enum: [claude, deepseek, gemini, openai]
+
+    AIProviderInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          enum: [claude, deepseek, gemini, openai]
+        available:
+          type: boolean
+          description: Whether this provider is currently available (API key configured)
+        model:
+          type: string
+          description: The model being used by this provider
 
     # Subscription Schemas
     SubscriptionStatus:

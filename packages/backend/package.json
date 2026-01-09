@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "@google/generative-ai": "^0.24.1",
     "astronomia": "^4.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-openapi-validator": "^5.6.0",
+    "openai": "^6.15.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0",
     "yaml": "^2.8.2"

@@ -1,24 +1,20 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { BirthChart } from '../astrology/types.js';
 import {
   SYSTEM_PROMPT,
-  ReadingCategory,
   READING_CATEGORIES,
   getCategoryPrompt,
   getChatPrompt,
 } from './prompts.js';
+import type { ReadingCategory } from './prompts.js';
+import {
+  getProviderManager,
+  resetProviderManager,
+  AIProviderManager,
+} from './providers/index.js';
 
-// Lazy-initialize Anthropic client (to ensure env vars are loaded first)
-let anthropicClient: Anthropic | null = null;
-
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-  }
-  return anthropicClient;
-}
+// Re-export reading category
+export { READING_CATEGORIES } from './prompts.js';
+export type { ReadingCategory } from './prompts.js';
 
 // In-memory cache for readings
 const readingCache = new Map<string, CachedReading>();
@@ -27,6 +23,7 @@ interface CachedReading {
   content: string;
   createdAt: Date;
   category: ReadingCategory;
+  provider: string;
 }
 
 /**
@@ -54,133 +51,151 @@ export function getCachedReading(chartId: string, category: ReadingCategory): Ca
 /**
  * Store a reading in the cache
  */
-function cacheReading(chartId: string, category: ReadingCategory, content: string): void {
+function cacheReading(chartId: string, category: ReadingCategory, content: string, provider: string): void {
   const key = getCacheKey(chartId, category);
   readingCache.set(key, {
     content,
     createdAt: new Date(),
     category,
+    provider,
   });
 }
 
 /**
+ * Get the provider manager instance
+ */
+function getManager(): AIProviderManager {
+  return getProviderManager();
+}
+
+/**
+ * Get list of available AI providers
+ */
+export function getAvailableProviders(): string[] {
+  return getManager().getAvailableProviderNames();
+}
+
+/**
+ * Get provider info with availability and model details
+ */
+export function getProviderInfo(): Array<{ name: string; available: boolean; model: string }> {
+  return getManager().getProviderInfo();
+}
+
+/**
+ * Get the default provider name
+ */
+export function getDefaultProvider(): string {
+  return getManager().getDefaultProviderName();
+}
+
+/**
  * Generate a reading for a specific category
+ * @param preferredProvider - If specified, try this provider first before falling back
  */
 export async function generateReading(
   chart: BirthChart,
   category: ReadingCategory,
-  useCache: boolean = true
-): Promise<{ content: string; cached: boolean }> {
+  useCache: boolean = true,
+  preferredProvider?: string
+): Promise<{ content: string; cached: boolean; provider?: string }> {
   // Check cache first
   if (useCache) {
     const cached = getCachedReading(chart.id, category);
     if (cached) {
-      return { content: cached.content, cached: true };
+      return { content: cached.content, cached: true, provider: cached.provider };
     }
   }
 
-  // Generate new reading
+  // Generate new reading using provider manager (with automatic fallback)
   const prompt = getCategoryPrompt(chart, category);
 
   try {
-    const response = await getAnthropicClient().messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
-
-    // Extract text content
-    const content = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join('\n');
+    const { content, provider } = await getManager().generateReading(
+      chart,
+      category,
+      SYSTEM_PROMPT,
+      prompt,
+      preferredProvider
+    );
 
     // Cache the reading
-    cacheReading(chart.id, category, content);
+    cacheReading(chart.id, category, content, provider);
 
-    return { content, cached: false };
+    return { content, cached: false, provider };
   } catch (error) {
     console.error('Error generating reading:', error);
-    throw new Error('Failed to generate astrological reading');
+    throw new Error('Failed to generate astrological reading. Please try again later.');
   }
 }
 
 /**
  * Handle a follow-up chat question about a chart
+ * @param preferredProvider - If specified, try this provider first before falling back
  */
 export async function handleChatQuestion(
   chart: BirthChart,
   question: string,
-  previousReadings: string[] = []
-): Promise<string> {
+  previousReadings: string[] = [],
+  preferredProvider?: string
+): Promise<{ content: string; provider: string }> {
   const prompt = getChatPrompt(chart, previousReadings, question);
 
   try {
-    const response = await getAnthropicClient().messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
+    const { content, provider } = await getManager().chat(
+      chart,
+      SYSTEM_PROMPT,
+      prompt,
+      preferredProvider
+    );
 
-    // Extract text content
-    const content = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join('\n');
-
-    return content;
+    return { content, provider };
   } catch (error) {
     console.error('Error handling chat question:', error);
-    throw new Error('Failed to process your question');
+    throw new Error('Failed to process your question. Please try again later.');
   }
 }
 
 /**
  * Generate a streaming reading (for real-time display)
+ * @param preferredProvider - If specified, try this provider first before falling back
  */
 export async function* generateReadingStream(
   chart: BirthChart,
-  category: ReadingCategory
+  category: ReadingCategory,
+  preferredProvider?: string
 ): AsyncGenerator<string, void, unknown> {
   const prompt = getCategoryPrompt(chart, category);
 
   try {
-    const stream = await getAnthropicClient().messages.stream({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
-
     let fullContent = '';
+    let providerName = '';
 
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        const text = event.delta.text;
-        fullContent += text;
-        yield text;
+    const stream = getManager().streamReading(
+      chart,
+      category,
+      SYSTEM_PROMPT,
+      prompt,
+      preferredProvider
+    );
+
+    for await (const text of stream) {
+      fullContent += text;
+      yield text;
+    }
+
+    // Get provider from stream return value
+    try {
+      const result = await stream.next();
+      if (result.done && result.value) {
+        providerName = result.value.provider;
       }
+    } catch {
+      providerName = 'unknown';
     }
 
     // Cache the complete reading
-    cacheReading(chart.id, category, fullContent);
+    cacheReading(chart.id, category, fullContent, providerName);
   } catch (error) {
     console.error('Error streaming reading:', error);
     throw new Error('Failed to stream astrological reading');
@@ -208,4 +223,11 @@ export function getAllCachedReadings(chartId: string): Record<ReadingCategory, C
   }
 
   return result as Record<ReadingCategory, CachedReading | null>;
+}
+
+/**
+ * Reset the AI provider (useful for testing or when config changes)
+ */
+export function resetAIProvider(): void {
+  resetProviderManager();
 }

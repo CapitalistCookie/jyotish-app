@@ -11,6 +11,7 @@ import * as OpenApiValidator from 'express-openapi-validator';
 import authRoutes from './routes/auth.js';
 import chartRoutes from './routes/chart.js';
 import readingRoutes from './routes/reading.js';
+import aiRoutes from './routes/ai.js';
 import subscriptionRoutes from './routes/subscription.js';
 
 // Load environment variables
@@ -86,6 +87,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/chart', chartRoutes);
 app.use('/api/reading', readingRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 
 // OpenAPI validation error handler

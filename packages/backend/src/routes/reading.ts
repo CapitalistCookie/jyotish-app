@@ -6,8 +6,12 @@ import {
   isValidCategory,
   getCachedReading,
   getAllCachedReadings,
+  getAvailableProviders,
+  getProviderInfo,
+  getDefaultProvider,
 } from '../services/ai/interpreter.js';
-import { READING_CATEGORIES, ReadingCategory } from '../services/ai/prompts.js';
+import { READING_CATEGORIES } from '../services/ai/prompts.js';
+import type { ReadingCategory } from '../services/ai/prompts.js';
 import { getChartById } from './chart.js';
 
 const router = Router();
@@ -51,6 +55,7 @@ function getCategoryDescription(category: ReadingCategory): string {
 router.get('/:chartId/summary', async (req: Request, res: Response) => {
   try {
     const { chartId } = req.params;
+    const { provider: preferredProvider } = req.query;
     const chart = getChart(chartId);
 
     if (!chart) {
@@ -61,16 +66,22 @@ router.get('/:chartId/summary', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check for API key
-    if (!process.env.ANTHROPIC_API_KEY) {
+    // Check for available AI providers
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
       res.status(503).json({
         success: false,
-        error: 'AI service not configured',
+        error: 'No AI providers configured. Please set up at least one API key.',
       });
       return;
     }
 
-    const { content, cached } = await generateReading(chart, 'summary');
+    const { content, cached, provider } = await generateReading(
+      chart,
+      'summary',
+      true,
+      preferredProvider as string | undefined
+    );
 
     res.json({
       success: true,
@@ -80,6 +91,7 @@ router.get('/:chartId/summary', async (req: Request, res: Response) => {
         cached,
         chartId,
         generatedAt: new Date().toISOString(),
+        provider,
       },
     });
   } catch (error) {
@@ -98,6 +110,7 @@ router.get('/:chartId/summary', async (req: Request, res: Response) => {
 router.get('/:chartId/:category', async (req: Request, res: Response) => {
   try {
     const { chartId, category } = req.params;
+    const { provider: preferredProvider } = req.query;
 
     // Validate category
     if (!isValidCategory(category)) {
@@ -119,11 +132,12 @@ router.get('/:chartId/:category', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check for API key
-    if (!process.env.ANTHROPIC_API_KEY) {
+    // Check for available AI providers
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
       res.status(503).json({
         success: false,
-        error: 'AI service not configured',
+        error: 'No AI providers configured. Please set up at least one API key.',
       });
       return;
     }
@@ -131,7 +145,12 @@ router.get('/:chartId/:category', async (req: Request, res: Response) => {
     // TODO: Check subscription for non-summary categories
     // For now, all categories are accessible
 
-    const { content, cached } = await generateReading(chart, category);
+    const { content, cached, provider } = await generateReading(
+      chart,
+      category,
+      true,
+      preferredProvider as string | undefined
+    );
 
     res.json({
       success: true,
@@ -141,6 +160,7 @@ router.get('/:chartId/:category', async (req: Request, res: Response) => {
         cached,
         chartId,
         generatedAt: new Date().toISOString(),
+        provider,
       },
     });
   } catch (error) {
@@ -159,6 +179,7 @@ router.get('/:chartId/:category', async (req: Request, res: Response) => {
 router.get('/:chartId/:category/stream', async (req: Request, res: Response) => {
   try {
     const { chartId, category } = req.params;
+    const { provider: preferredProvider } = req.query;
 
     // Validate category
     if (!isValidCategory(category)) {
@@ -179,11 +200,12 @@ router.get('/:chartId/:category/stream', async (req: Request, res: Response) => 
       return;
     }
 
-    // Check for API key
-    if (!process.env.ANTHROPIC_API_KEY) {
+    // Check for available AI providers
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
       res.status(503).json({
         success: false,
-        error: 'AI service not configured',
+        error: 'No AI providers configured. Please set up at least one API key.',
       });
       return;
     }
@@ -207,7 +229,7 @@ router.get('/:chartId/:category/stream', async (req: Request, res: Response) => 
     res.setHeader('Connection', 'keep-alive');
 
     // Stream the reading
-    const stream = generateReadingStream(chart, category);
+    const stream = generateReadingStream(chart, category, preferredProvider as string | undefined);
 
     for await (const chunk of stream) {
       res.write(`data: ${JSON.stringify({ text: chunk, done: false })}\n\n`);
@@ -229,6 +251,7 @@ router.get('/:chartId/:category/stream', async (req: Request, res: Response) => 
 router.post('/:chartId/chat', async (req: Request, res: Response) => {
   try {
     const { chartId } = req.params;
+    const { provider: preferredProvider } = req.query;
     const { question, previousReadings = [] } = req.body;
 
     if (!question || typeof question !== 'string') {
@@ -249,22 +272,29 @@ router.post('/:chartId/chat', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check for API key
-    if (!process.env.ANTHROPIC_API_KEY) {
+    // Check for available AI providers
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
       res.status(503).json({
         success: false,
-        error: 'AI service not configured',
+        error: 'No AI providers configured. Please set up at least one API key.',
       });
       return;
     }
 
-    const response = await handleChatQuestion(chart, question, previousReadings);
+    const { content, provider } = await handleChatQuestion(
+      chart,
+      question,
+      previousReadings,
+      preferredProvider as string | undefined
+    );
 
     res.json({
       success: true,
-      response,
+      response: content,
       chartId,
       timestamp: new Date().toISOString(),
+      provider,
     });
   } catch (error) {
     console.error('Error handling chat:', error);
