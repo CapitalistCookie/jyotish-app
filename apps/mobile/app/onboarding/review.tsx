@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboardingStore } from '../../stores/useOnboardingStore';
+import { useChartStore } from '../../stores/useChartStore';
 import { Colors } from '../../constants/colors';
 
 const MONTHS = [
@@ -16,6 +18,15 @@ function formatDate(date: Date | null): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
+function formatDateForApi(date: Date | null): string {
+  if (!date) return '';
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function formatTime(time: Date | null, unknown: boolean): string {
   if (unknown || !time) return 'Unknown (using 12:00 PM)';
   const t = new Date(time);
@@ -24,6 +35,14 @@ function formatTime(time: Date | null, unknown: boolean): string {
   const hour12 = hours % 12 || 12;
   const ampm = hours < 12 ? 'AM' : 'PM';
   return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function formatTimeForApi(time: Date | null, unknown: boolean): string {
+  if (unknown || !time) return '12:00';
+  const t = new Date(time);
+  const hours = String(t.getHours()).padStart(2, '0');
+  const minutes = String(t.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 
 interface ReviewRowProps {
@@ -48,6 +67,9 @@ function ReviewRow({ label, value, onEdit }: ReviewRowProps) {
 
 export default function OnboardingReview() {
   const insets = useSafeAreaInsets();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const {
     firstName,
     lastName,
@@ -55,11 +77,36 @@ export default function OnboardingReview() {
     birthTime,
     birthTimeUnknown,
     birthPlace,
+    latitude,
+    longitude,
+    timezone,
   } = useOnboardingStore();
 
-  const handleGenerateChart = () => {
-    // TODO: Navigate to main app / chart generation
-    router.replace('/(main)');
+  const { generateChart } = useChartStore();
+
+  const handleGenerateChart = async () => {
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const chart = await generateChart({
+        birthDate: formatDateForApi(birthDate),
+        birthTime: formatTimeForApi(birthTime, birthTimeUnknown),
+        latitude: latitude || 40.7128, // Default to NYC if not set
+        longitude: longitude || -74.006,
+        timezone: timezone || 'America/New_York',
+      });
+
+      if (chart) {
+        router.replace('/(main)/chart');
+      } else {
+        setError('Failed to generate chart. Please try again.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -102,6 +149,12 @@ export default function OnboardingReview() {
           />
         </View>
 
+        {error && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.noteBox}>
           <Text style={styles.noteIcon}>✦</Text>
           <Text style={styles.noteText}>
@@ -114,11 +167,13 @@ export default function OnboardingReview() {
         <Button
           mode="contained"
           onPress={handleGenerateChart}
+          loading={isGenerating}
+          disabled={isGenerating}
           style={styles.button}
           labelStyle={styles.buttonLabel}
           contentStyle={styles.buttonContent}
         >
-          Generate My Chart
+          {isGenerating ? 'Generating...' : 'Generate My Chart'}
         </Button>
       </View>
     </View>
@@ -183,6 +238,19 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginVertical: 12,
+  },
+  errorBox: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: Colors.error + '20',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.error + '40',
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: 14,
+    textAlign: 'center',
   },
   noteBox: {
     flexDirection: 'row',

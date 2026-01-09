@@ -1,24 +1,24 @@
-import { View, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { router } from 'expo-router';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Text } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
-import { useOnboardingStore } from '../../stores/useOnboardingStore';
+import { useChartStore } from '../../stores/useChartStore';
 
-export default function MainScreen() {
-  const insets = useSafeAreaInsets();
-  const { firstName } = useOnboardingStore();
+export default function MainIndex() {
+  const { chart } = useChartStore();
+
+  useEffect(() => {
+    // If we have a chart, go to chart view
+    if (chart) {
+      router.replace('/(main)/chart');
+    }
+  }, [chart]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
-      <Text style={styles.greeting}>Welcome, {firstName}!</Text>
-      <Text style={styles.subtitle}>Your cosmic journey begins here</Text>
-
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderIcon}>☉</Text>
-        <Text style={styles.placeholderText}>
-          Your birth chart will appear here
-        </Text>
-      </View>
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color={Colors.primary} />
+      <Text style={styles.text}>Loading your chart...</Text>
     </View>
   );
 }
@@ -26,32 +26,12 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-    paddingHorizontal: 24,
-  },
-  greeting: {
-    fontSize: 28,
-    fontWeight: '300',
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-    marginBottom: 40,
-  },
-  placeholder: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderIcon: {
-    fontSize: 64,
-    color: Colors.primary,
-    marginBottom: 16,
-  },
-  placeholderText: {
+  text: {
+    marginTop: 16,
+    color: Colors.textSecondary,
     fontSize: 16,
-    color: Colors.textMuted,
   },
 });
