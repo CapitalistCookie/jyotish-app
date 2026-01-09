@@ -2,6 +2,7 @@ import { View, StyleSheet, Dimensions } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 
 const { width } = Dimensions.get('window');
@@ -42,7 +43,7 @@ export default function HomeScreen() {
       <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 40 }]}>
         <Button
           mode="outlined"
-          onPress={() => {}}
+          onPress={() => router.push('/(auth)/login')}
           style={styles.button}
           labelStyle={styles.buttonLabel}
           contentStyle={styles.buttonContent}
